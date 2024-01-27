@@ -18,7 +18,7 @@ auto TrieStore::Get(std::string_view key) -> std::optional<ValueGuard<T>> {
   root_lock_.unlock();
   std::optional<ValueGuard<T>> ret;
   auto res = cur_trie.Get<T>(key);
-  if (res == nullptr){
+  if (res == nullptr) {
     return std::nullopt;
   }
   return std::make_optional<ValueGuard<T>>(cur_trie, *res);
@@ -31,10 +31,17 @@ void TrieStore::Put(std::string_view key, T value) {
   // throw NotImplementedException("TrieStore::Put is not implemented.");
 
   write_lock_.lock();
+
   root_lock_.lock();
   auto cur_trie = root_;
-  root_ = cur_trie.Put(key, std::forward<T>(value));
   root_lock_.unlock();
+
+  auto n_root = cur_trie.Put(key, std::forward<T>(value));
+
+  root_lock_.lock();
+  root_ = n_root;
+  root_lock_.unlock();
+
   write_lock_.unlock();
 }
 
