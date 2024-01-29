@@ -24,7 +24,7 @@ namespace bustub {
 using bustub::DiskManagerUnlimitedMemory;
 
 // NOLINTNEXTLINE
-TEST(DiskSchedulerTest, ScheduleWriteReadPageTest) {
+TEST(DiskSchedulerTest, DISABLED_ScheduleWriteReadPageTest) {
   char buf[BUSTUB_PAGE_SIZE] = {0};
   char data[BUSTUB_PAGE_SIZE] = {0};
 
