@@ -64,15 +64,14 @@ auto Trie::Put(std::string_view key, T value) const -> Trie {
   };
   auto n_node = add(root_.get(), 0);
   return Trie(std::move(n_node));
-//  return *end;
+  //  return *end;
 
   //  add(root_.get(), 0);  // return a TrieNode shared ptr
   // You should walk through the trie and create new nodes if necessary. If the node corresponding to the key already
   // exists, you should create a new `TrieNodeWithValue`.
 }
 
-auto Trie::Remove(std::string_view key) const -> Trie
-{
+auto Trie::Remove(std::string_view key) const -> Trie {
   //    throw NotImplementedException("Trie::Remove is not implemented.");
   auto len = key.length();
   auto cur = root_.get();

@@ -19,10 +19,12 @@ TEST(TrieDebugger, TestCase) {
   std::mt19937_64 gen(23333);
   zipfian_int_distribution<uint32_t> dis(0, 1000);
 
+  unsigned int tmp = 0;
   auto trie = Trie();
   for (uint32_t i = 0; i < 100; i++) {
     std::string key = fmt::format("{}", dis(gen));
     auto value = dis(gen);
+    if (key == "969") tmp = value;
     switch (i) {
       // Test the first 3 values from the random generator.
       case 0:
@@ -40,6 +42,8 @@ TEST(TrieDebugger, TestCase) {
     trie = trie.Put<uint32_t>(key, value);
   }
 
+  //  std::cout<<tmp<<"\n";
+
   // Put a breakpoint here.
 
   // (1) How many children nodes are there on the root?
@@ -56,6 +60,7 @@ TEST(TrieDebugger, TestCase) {
 
   // (3) What's the value for `969`?
   // Replace `CASE_3_YOUR_ANSWER` in `trie_answer.h` with the correct answer.
+
   if (CASE_3_YOUR_ANSWER != Case3CorrectAnswer()) {
     ASSERT_TRUE(false) << "case 3 not correct";
   }
