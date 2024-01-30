@@ -34,13 +34,7 @@ DiskScheduler::~DiskScheduler() {
 }
 
 void DiskScheduler::Schedule(DiskRequest r) {
-  if (r.is_write_) {
-    disk_manager_->WritePage(r.page_id_, r.data_);
-  } else {
-    disk_manager_->ReadPage(r.page_id_, r.data_);
-  }
 
-  r.callback_.set_value(true);
 }
 
 void DiskScheduler::StartWorkerThread() {
@@ -48,7 +42,14 @@ void DiskScheduler::StartWorkerThread() {
     auto req = request_queue_.Get();
     // 如果还有待执行的
     while (req.has_value()) {
-      Schedule(std::move(req.value()));
+
+      if (req->is_write_) {
+        disk_manager_->WritePage(req->page_id_, req->data_);
+      } else {
+        disk_manager_->ReadPage(req->page_id_, req->data_);
+      }
+
+      req->callback_.set_value(true);
 
       req = request_queue_.Get();
     }

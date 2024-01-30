@@ -21,10 +21,9 @@ namespace bustub {
 BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager, size_t replacer_k,
                                      LogManager *log_manager)
     : pool_size_(pool_size), disk_scheduler_(std::make_unique<DiskScheduler>(disk_manager)), log_manager_(log_manager) {
-  // TODO(students): remove this line after you have implemented the buffer pool manager
-  throw NotImplementedException(
-      "BufferPoolManager is not implemented yet. If you have finished implementing BPM, please remove the throw "
-      "exception line in `buffer_pool_manager.cpp`.");
+//  throw NotImplementedException(
+//      "BufferPoolManager is not implemented yet. If you have finished implementing BPM, please remove the throw "
+//      "exception line in `buffer_pool_manager.cpp`.");
 
   // we allocate a consecutive memory space for the buffer pool
   pages_ = new Page[pool_size_];
@@ -38,7 +37,49 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
 
 BufferPoolManager::~BufferPoolManager() { delete[] pages_; }
 
-auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * { return nullptr; }
+auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
+  // 如果有空闲页, 优先分配空闲页
+  if (not free_list_.empty()) {
+    frame_id_t fid = free_list_.front();
+
+    free_list_.pop_front();
+
+    // 分配页id
+    page_id_t pid = AllocatePage();
+    this->page_table_[pid] = fid;
+    pages_[fid].page_id_ = pid;
+
+    *page_id = pid;
+    return pages_+fid;
+  }
+
+  frame_id_t frame = 0;
+  // 如果有可以置换的页
+  if(replacer_->Evict(&frame)) {
+    DiskRequest req;
+    auto& page_swap = pages_[frame];
+
+    auto promise = disk_scheduler_->CreatePromise();
+    auto future = promise.get_future();
+
+    req.is_write_ = true;
+    req.callback_ = std::move(promise);
+    req.data_ = page_swap.data_;
+    req.page_id_ = page_swap.page_id_;
+
+    disk_scheduler_->Schedule(std::move(req));
+
+    bool res = future.get();
+
+    if(not res) {
+      
+    }
+
+  }
+
+  // 如果没有页面可供分配, 并且也没有页面可以置换出去, 分配失败
+  return nullptr;
+}
 
 auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType access_type) -> Page * {
   return nullptr;
