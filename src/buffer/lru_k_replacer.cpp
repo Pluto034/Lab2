@@ -33,13 +33,6 @@ struct NodeInfo {
   }
 };
 
-struct Lockker {
-  std::mutex &mutex_;
-  explicit Lockker(std::mutex &mutex) : mutex_(mutex) {}
-  void Lock() { mutex_.lock(); }
-  virtual ~Lockker() { mutex_.unlock(); }
-};
-
 /**
  * 构造函数
  * @param num_frames 最多需要存储的页面数
@@ -48,8 +41,7 @@ struct Lockker {
 LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {}
 
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
-  Lockker _(latch_);
-  _.Lock();
+  std::scoped_lock<std::mutex> _(latch_);
   if (node_evict_.empty()) {
     return false;
   }
@@ -70,8 +62,7 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
 }
 
 void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType access_type) {
-  Lockker _(latch_);
-  _.Lock();
+  std::scoped_lock<std::mutex> _(latch_);
   if (node_evict_.count(frame_id) != 0U) {
     auto &node = node_evict_.at(frame_id);
 
@@ -98,8 +89,7 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
 }
 
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
-  Lockker _(latch_);
-  _.Lock();
+  std::scoped_lock<std::mutex> _(latch_);
   if (node_evict_.count(frame_id) != 0U) {
     if (set_evictable) {
       return;
@@ -124,8 +114,7 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
 }
 
 void LRUKReplacer::Remove(frame_id_t frame_id) {
-  Lockker _(latch_);
-  _.Lock();
+  std::scoped_lock<std::mutex> _(latch_);
   if (node_evict_.count(frame_id) != 0U) {
     node_evict_.erase(frame_id);
     return;
@@ -136,8 +125,7 @@ void LRUKReplacer::Remove(frame_id_t frame_id) {
 }
 
 auto LRUKReplacer::Size() -> size_t {
-  Lockker _(latch_);
-  _.Lock();
+  std::scoped_lock<std::mutex> _(latch_);
   return node_evict_.size();
 }
 
