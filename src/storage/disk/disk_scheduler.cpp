@@ -33,16 +33,13 @@ DiskScheduler::~DiskScheduler() {
   }
 }
 
-void DiskScheduler::Schedule(DiskRequest r) {
-  request_queue_.Put(std::make_optional<DiskRequest>(std::move(r)));
-}
+void DiskScheduler::Schedule(DiskRequest r) { request_queue_.Put(std::make_optional<DiskRequest>(std::move(r))); }
 
 void DiskScheduler::StartWorkerThread() {
   while (true) {
     auto req = request_queue_.Get();
     // 如果还有待执行的
     while (req.has_value()) {
-
       if (req->is_write_) {
         disk_manager_->WritePage(req->page_id_, req->data_);
       } else {
