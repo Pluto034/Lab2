@@ -38,62 +38,252 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
 BufferPoolManager::~BufferPoolManager() { delete[] pages_; }
 
 auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
+  std::scoped_lock<std::mutex> _(latch_);
+  frame_id_t fid = 0;
   // 如果有空闲页, 优先分配空闲页
   if (not free_list_.empty()) {
-    frame_id_t fid = free_list_.front();
-
+    fid = free_list_.front();
     free_list_.pop_front();
+
+    auto &page = pages_[fid];
 
     // 分配页id
     page_id_t pid = AllocatePage();
     this->page_table_[pid] = fid;
-    pages_[fid].page_id_ = pid;
+    page.page_id_ = pid;
+    replacer_->RecordAccess(fid);
 
     *page_id = pid;
-    return pages_+fid;
+
+    page.ResetMemory();
+
+    // 引用计数加1
+    page.pin_count_++;
+    replacer_->SetEvictable(fid, false);
+    page.is_dirty_ = true;
+
+    return &page;
   }
 
-  frame_id_t frame = 0;
   // 如果有可以置换的页
-  if(replacer_->Evict(&frame)) {
-    DiskRequest req;
-    auto& page_swap = pages_[frame];
+  if(replacer_->Evict(&fid)) {
+    auto& page = pages_[fid];
 
-    auto promise = disk_scheduler_->CreatePromise();
-    auto future = promise.get_future();
+    // 如果页在缓冲池中已经被修改过, 将修改回写
+    DumpPage(page);
+    page.ResetMemory();
 
-    req.is_write_ = true;
-    req.callback_ = std::move(promise);
-    req.data_ = page_swap.data_;
-    req.page_id_ = page_swap.page_id_;
+    replacer_->RecordAccess(fid);
 
-    disk_scheduler_->Schedule(std::move(req));
+    // 引用计数加1
+    page.pin_count_++;
+    replacer_->SetEvictable(fid, false);
+    page.is_dirty_ = true;
 
-    bool res = future.get();
+    page_id_t pid = AllocatePage();
+    *page_id = pid;
+    page.page_id_ = pid;
 
-    if(not res) {
-      
-    }
+    page_table_[pid] = fid;
 
+    return &page;
   }
 
-  // 如果没有页面可供分配, 并且也没有页面可以置换出去, 分配失败
+  // 分配失败
+  *page_id = INVALID_PAGE_ID;
   return nullptr;
 }
 
 auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType access_type) -> Page * {
+  std::scoped_lock<std::mutex> _(latch_);
+  if(page_id == INVALID_PAGE_ID or page_table_.count(page_id) == 0U) {
+    return nullptr;
+  }
+
+  frame_id_t fid = page_table_[page_id];
+
+  // 需要的页在当前缓冲池中正确的位置上
+  if(pages_[fid].page_id_ == page_id) {
+    auto &page = pages_[fid];
+
+    // 引用计数加1
+    page.pin_count_++;
+    replacer_->SetEvictable(fid, false);
+    page.is_dirty_ = true;
+
+    return &page;
+  }
+
+  // 否则说明页不在缓冲池, 在磁盘上
+  // 如果缓冲池有空闲, 先使用空闲的缓冲池
+  if(not free_list_.empty()) {
+    fid = free_list_.front(); free_list_.pop_front();
+
+    auto& page = pages_[fid];
+
+    LoadPage(page, page_id);
+
+    replacer_->RecordAccess(fid);
+
+    // 引用计数加1
+    page.pin_count_++;
+    replacer_->SetEvictable(fid, false);
+    page.is_dirty_ = true;
+
+    return &page;
+  }
+
+  // 如果有可以换出的页面
+  if(replacer_->Evict(&fid)) {
+    auto& page = pages_[fid];
+
+    // 将页面写回磁盘
+    DumpPage(page);
+
+    LoadPage(page, page_id);
+
+    replacer_->Remove(fid);
+    replacer_->RecordAccess(fid);
+
+    // 引用计数加1
+    page.pin_count_++;
+    replacer_->SetEvictable(fid, false);
+    page.is_dirty_ = true;
+
+    return &page;
+  }
+
+  // 如果没有空闲页面并且也没有可以换出的页面, 访问失败
   return nullptr;
 }
 
 auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unused]] AccessType access_type) -> bool {
+  std::scoped_lock<std::mutex> _(latch_);
+  // 理论上不可能的情况
+  if(page_table_.count(page_id) == 0U) {
+    return false;
+  }
+  frame_id_t fid = page_table_.at(page_id);
+  auto& page = pages_[fid];
+  if(page.pin_count_ <= 0) {
+    return false;
+  }
+
+  if(is_dirty) {
+    page.is_dirty_ = true;
+  }
+
+  page.pin_count_--;
+  if(page.pin_count_ == 0) {
+    replacer_->SetEvictable(fid, true);
+  }
+
+  return true;
+}
+
+auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
+  std::scoped_lock<std::mutex> _(latch_);
+  if(page_table_.count(page_id) == 0U) {
+    return false;
+  }
+  frame_id_t frame_id = page_table_.at(page_id);
+  auto& page = pages_[frame_id];
+  return DumpPage(page);
+}
+
+void BufferPoolManager::FlushAllPages() {
+  std::scoped_lock<std::mutex> _(latch_);
+  for(auto[_,fid] :page_table_) {
+    auto& page = pages_[fid];
+    DumpPage(page);
+  }
+}
+
+auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
+  std::scoped_lock<std::mutex> _(latch_);
+  if(page_table_.count(page_id) == 0U) {
+    return true;
+  }
+  frame_id_t fid = page_table_.at(page_id);
+  auto& page = pages_[fid];
+  if(page.pin_count_ == 0) {
+    if(page.is_dirty_) {
+      DumpPage(page);
+    }
+    replacer_->Remove(fid);
+    page_table_.erase(page_id);
+    return true;
+  }
   return false;
 }
 
-auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool { return false; }
+auto BufferPoolManager::DumpPage(Page &page) -> bool {
+  page.WLatch();
 
-void BufferPoolManager::FlushAllPages() {}
+  if(page.page_id_ == INVALID_PAGE_ID or not page.is_dirty_) {
+    page.rwlatch_.WUnlock();
+    return false;
+  }
 
-auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool { return false; }
+  DiskRequest req;
+
+  auto promise = disk_scheduler_->CreatePromise();
+  auto future = promise.get_future();
+
+  req.is_write_ = true;
+  req.callback_ = std::move(promise);
+  req.data_ = page.data_;
+  req.page_id_ = page.page_id_;
+
+  disk_scheduler_->Schedule(std::move(req));
+
+  bool res = future.get();
+
+  // 如果写成功, 那么页面就不是脏的
+  page.is_dirty_ = !res;
+
+  page.WUnlatch();
+
+  return res;
+}
+
+auto BufferPoolManager::LoadPage(Page &page, page_id_t pid) -> bool {
+  page.WLatch();
+  // 理论上磁盘数据不可能比内存新
+  // 但是如果就是需要用旧数据覆盖, 就可能了
+  // if(page.page_id_ == pid) {
+  //   return false;
+  // }
+
+  //BUSTUB_ASSERT(page.pin_count_ == 0, "FOR LOAD OPERATION, YOU SHOULD ENSURE NO REF COUNT!");
+
+  DiskRequest req;
+
+  auto promise = disk_scheduler_->CreatePromise();
+  auto future = promise.get_future();
+
+  req.is_write_ = false;
+  req.callback_ = std::move(promise);
+  req.data_ = page.data_;
+  req.page_id_ = pid;
+
+//  page.RLatch();
+  disk_scheduler_->Schedule(std::move(req));
+
+  bool res = future.get();
+//  page.RUnlatch();
+
+  if (res) {
+    page.page_id_ = pid;
+    page.is_dirty_ = false;
+    page.pin_count_ = 0;
+  }
+
+  page.WUnlatch();
+
+  return res;
+}
+
 
 auto BufferPoolManager::AllocatePage() -> page_id_t { return next_page_id_++; }
 
