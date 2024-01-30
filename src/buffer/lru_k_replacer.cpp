@@ -88,7 +88,7 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
 void LRUKReplacer::Remove(frame_id_t frame_id) {
   std::lock_guard<std::mutex> lock(latch_);
   if (node_store_.count(frame_id) == 0U) {
-    throw bustub::Exception(fmt::format("No matching pages@{}.", frame_id));
+    return;
   }
   if (!node_store_[frame_id].is_evictable_) {
     throw bustub::Exception(fmt::format("No matching pages@{}.", frame_id));
