@@ -63,7 +63,7 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
   Page *new_page = &pages_[frame_id];
   new_page->page_id_ = new_page_id;
   new_page->is_dirty_ = false;
-  new_page->pin_count_ = 1;
+  new_page->pin_count_ += 1;
 
   *page_id = new_page_id;
   return new_page;
@@ -72,8 +72,7 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
 auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType access_type) -> Page * {
   std::cerr << "Fetch: " << page_id << std::endl;
   std::unique_lock<std::mutex> lock(latch_);
-  if (page_table_.count(page_id) != 0U)
-  {
+  if (page_table_.count(page_id) != 0U) {
     frame_id_t frame_id = page_table_[page_id];
     Page *new_page = &pages_[frame_id];
     new_page->pin_count_++;
@@ -111,6 +110,7 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
   new_page->page_id_ = new_page_id;
   new_page->is_dirty_ = false;
   new_page->pin_count_ = 1;
+  //  new_page->ResetMemory();
 
   //  *page_id = new_page_id;
   return new_page;
@@ -121,27 +121,29 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
 auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unused]] AccessType access_type) -> bool {
   std::cerr << "UnpinPage:" << page_id << " " << is_dirty << std::endl;
   std::unique_lock<std::mutex> lock(latch_);
-  if (page_table_.find(page_id) == page_table_.end() || pages_[page_table_[page_id]].GetPinCount() == 0) {
+  if (page_table_.find(page_id) == page_table_.end()) {
     return false;
   }
   frame_id_t frame_id = page_table_[page_id];
   Page *page = &pages_[frame_id];
-  if (page->pin_count_ == 0) {
+
+  page->is_dirty_ |= is_dirty;
+  if (pages_[page_table_[page_id]].GetPinCount() == 0) {
     return false;
   }
   if (--page->pin_count_ == 0) {
     replacer_->SetEvictable(page_table_[page_id], true);
   }
-  pages_->is_dirty_ = is_dirty;
+  //  page->is_dirty_ = is_dirty;
   //  pages_[page_id].is_dirty_ = is_dirty;
   return true;
 }
 
 auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
-  //  std::unique_lock<std::mutex> lock(latch_);
+  //  std::unique_lock<std::mutex>lock(latch_
+  ;
   std::cerr << "FlushPage: " << page_id << std::endl;
-  if (page_table_.find(page_id) == page_table_.end())
-  {
+  if (page_table_.find(page_id) == page_table_.end()) {
     return false;
   }
 
@@ -177,12 +179,12 @@ auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
     FlushPage(page_id);
   }
 
-  page_table_.erase(frame_id);
+  page_table_.erase(page->page_id_);
   free_list_.push_back(frame_id);
   replacer_->Remove(frame_id);
 
-  DeallocatePage(page_id);
   page->ResetMemory();
+  //  DeallocatePage(page_id);
 
   return true;
 }

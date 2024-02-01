@@ -108,14 +108,6 @@ TEST(BufferPoolManagerTest, SampleTest) {
   page_id_t page_id_temp;
   auto *page0 = bpm->NewPage(&page_id_temp);
 
-//  9: UnpinPage:0 1
-//  9: UnpinPage:1 1
-//  9: FlushPage: 0
-//  9: UnpinPage:2 1
-//  9: UnpinPage:3 1
-//  9: Fetch: 0
-//  9: FlushPage: 2
-//  9: Fetch: 1
   // Scenario: The buffer pool is empty. We should be able to create a new page.
   ASSERT_NE(nullptr, page0);
   EXPECT_EQ(0, page_id_temp);
@@ -161,6 +153,5 @@ TEST(BufferPoolManagerTest, SampleTest) {
   delete bpm;
   delete disk_manager;
 }
-
 
 }  // namespace bustub
