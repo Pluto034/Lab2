@@ -18,6 +18,29 @@
 
 namespace bustub {
 
+#define DBG
+
+#ifdef DBG
+#define Log(...)                               \
+  std::cerr << __func__ << " : " << std::endl; \
+  std::cerr << #__VA_ARGS__ << std::endl;      \
+  Out(__VA_ARGS__);                            \
+  std::cerr << std::endl;
+#else
+#define Log(...)
+#endif
+
+auto Out() -> auto & { return (std::cerr); }
+template <class T>
+auto Out(T first) -> auto & {
+  return (Out() << first);
+}
+template <class T, class... Args>
+auto Out(T first, Args... args) -> auto & {
+  Out() << first << ' ';
+  return Out(args...);
+}
+
 BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager, size_t replacer_k,
                                      LogManager *log_manager)
     : pool_size_(pool_size), disk_scheduler_(std::make_unique<DiskScheduler>(disk_manager)), log_manager_(log_manager) {
@@ -37,252 +60,248 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
 
 BufferPoolManager::~BufferPoolManager() { delete[] pages_; }
 
+/**
+ * TODO(P1): Add implementation
+ *
+ * @brief Create a new page in the buffer pool. Set page_id to the new page's id, or nullptr if all frames
+ * are currently in use and not evictable (in another word, pinned).
+ *
+ * You should pick the replacement frame from either the free list or the replacer (always find from the free list
+ * first), and then call the AllocatePage() method to get a new page id. If the replacement frame has a dirty page,
+ * you should write it back to the disk first. You also need to reset the memory and metadata for the new page.
+ *
+ * Remember to "Pin" the frame by calling replacer.SetEvictable(frame_id, false)
+ * so that the replacer wouldn't evict the frame before the buffer pool manager "Unpin"s it.
+ * Also, remember to record the access history of the frame in the replacer for the lru-k algorithm to work.
+ *
+ * @param[out] page_id id of created page
+ * @return nullptr if no new pages could be created, otherwise pointer to new page
+ */
 auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
+  // 加管理锁
   std::scoped_lock<std::mutex> _(latch_);
-  frame_id_t fid = 0;
-  // 如果有空闲页, 优先分配空闲页
+
+  Page *res = nullptr;
+  frame_id_t fid = INVALID_PAGE_ID;
   if (not free_list_.empty()) {
+    *page_id = AllocatePage();
+
     fid = free_list_.front();
     free_list_.pop_front();
+    res = &pages_[fid];
+  } else if (replacer_->Evict(&fid)) {
+    *page_id = AllocatePage();
 
-    auto &page = pages_[fid];
-
-    // 分配页id
-    page_id_t pid = AllocatePage();
-    this->page_table_[pid] = fid;
-    page.page_id_ = pid;
-    replacer_->RecordAccess(fid);
-
-    *page_id = pid;
-
-    page.ResetMemory();
-
-    // 引用计数加1
-    page.pin_count_++;
-    replacer_->SetEvictable(fid, false);
-    page.is_dirty_ = true;
-
-    return &page;
+    res = &pages_[fid];
+    SwapPage(res, INVALID_PAGE_ID);
+  } else {
+    fid = INVALID_PAGE_ID;
+    res = nullptr;
   }
 
-  // 如果有可以置换的页
-  if (replacer_->Evict(&fid)) {
-    auto &page = pages_[fid];
-
-    // 如果页在缓冲池中已经被修改过, 将修改回写
-    DumpPage(page);
-    page.ResetMemory();
-
-    replacer_->RecordAccess(fid);
-
-    // 引用计数加1
-    page.pin_count_++;
-    replacer_->SetEvictable(fid, false);
-    page.is_dirty_ = true;
-
-    page_id_t pid = AllocatePage();
-    *page_id = pid;
-    page.page_id_ = pid;
-
-    page_table_[pid] = fid;
-
-    return &page;
-  }
-
-  // 分配失败
-  *page_id = INVALID_PAGE_ID;
-  return nullptr;
-}
-
-auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType access_type) -> Page * {
-  std::scoped_lock<std::mutex> _(latch_);
-  if (page_id == INVALID_PAGE_ID or page_table_.count(page_id) == 0U) {
+  if (res == nullptr) {
+    *page_id = INVALID_PAGE_ID;
     return nullptr;
   }
+  res->page_id_ = *page_id;
 
-  frame_id_t fid = page_table_[page_id];
+  page_table_[*page_id] = fid;
 
-  // 需要的页在当前缓冲池中正确的位置上
-  if (pages_[fid].page_id_ == page_id) {
-    auto &page = pages_[fid];
+  res->pin_count_++;
+  replacer_->RecordAccess(fid);
+  replacer_->SetEvictable(fid, false);
 
-    // 引用计数加1
-    page.pin_count_++;
+  WritePage(res);
+  return res;
+}
+
+/**
+ * TODO(P1): Add implementation
+ *
+ * @brief Fetch the requested page from the buffer pool. Return nullptr if page_id needs to be fetched from the disk
+ * but all frames are currently in use and not evictable (in another word, pinned).
+ *
+ * First search for page_id in the buffer pool. If not found, pick a replacement frame from either the free list or
+ * the replacer (always find from the free list first), read the page from disk by scheduling a read DiskRequest with
+ * disk_scheduler_->Schedule(), and replace the old page in the frame. Similar to NewPage(), if the old page is dirty,
+ * you need to write it back to disk and update the metadata of the new page
+ *
+ * In addition, remember to disable eviction and record the access history of the frame like you did for NewPage().
+ *
+ * @param page_id id of page to be fetched
+ * @param access_type type of access to the page, only needed for leaderboard tests.
+ * @return nullptr if page_id cannot be fetched, otherwise pointer to the requested page
+ */
+auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType access_type) -> Page * {
+  std::scoped_lock<std::mutex> _(latch_);
+
+  auto iter = page_table_.find(page_id);
+  if (iter != page_table_.end()) {
+    frame_id_t fid = iter->second;
+    Page *page = &pages_[fid];
+
+    page->pin_count_++;
+    replacer_->RecordAccess(fid);
     replacer_->SetEvictable(fid, false);
-    page.is_dirty_ = true;
 
-    return &page;
+    if (access_type == AccessType::Scan) {
+      page->is_dirty_ = true;
+    }
+
+    return page;
   }
 
-  // 否则说明页不在缓冲池, 在磁盘上
-  // 如果缓冲池有空闲, 先使用空闲的缓冲池
+  frame_id_t fid;
   if (not free_list_.empty()) {
     fid = free_list_.front();
+    Page *page = pages_ + fid;
     free_list_.pop_front();
+    SwapPage(page, page_id);
 
-    auto &page = pages_[fid];
-
-    LoadPage(page, page_id);
-
+    page->pin_count_++;
+    page_table_[page_id] = fid;
     replacer_->RecordAccess(fid);
-
-    // 引用计数加1
-    page.pin_count_++;
     replacer_->SetEvictable(fid, false);
-    page.is_dirty_ = true;
 
-    return &page;
+    if (access_type == AccessType::Scan) {
+      page->is_dirty_ = true;
+    }
+
+    return page;
   }
 
-  // 如果有可以换出的页面
   if (replacer_->Evict(&fid)) {
-    auto &page = pages_[fid];
+    Page *page = pages_ + fid;
+    SwapPage(page, page_id);
 
-    // 将页面写回磁盘
-    DumpPage(page);
-
-    LoadPage(page, page_id);
-
-    replacer_->Remove(fid);
+    page->pin_count_++;
+    page_table_[page_id] = fid;
     replacer_->RecordAccess(fid);
-
-    // 引用计数加1
-    page.pin_count_++;
     replacer_->SetEvictable(fid, false);
-    page.is_dirty_ = true;
 
-    return &page;
+    if (access_type == AccessType::Scan) {
+      page->is_dirty_ = true;
+    }
+
+    return page;
   }
 
-  // 如果没有空闲页面并且也没有可以换出的页面, 访问失败
   return nullptr;
 }
 
+/**
+ * TODO(P1): Add implementation
+ *
+ * @brief Unpin the target page from the buffer pool. If page_id is not in the buffer pool or its pin count is already
+ * 0, return false.
+ *
+ * Decrement the pin count of a page. If the pin count reaches 0, the frame should be evictable by the replacer.
+ * Also, set the dirty flag on the page to indicate if the page was modified.
+ *
+ * @param page_id id of page to be unpinned
+ * @param is_dirty true if the page should be marked as dirty, false otherwise
+ * @param access_type type of access to the page, only needed for leaderboard tests.
+ * @return false if the page is not in the page table or its pin count is <= 0 before this call, true otherwise
+ */
 auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unused]] AccessType access_type) -> bool {
   std::scoped_lock<std::mutex> _(latch_);
-  // 理论上不可能的情况
-  if (page_table_.count(page_id) == 0U) {
+
+  auto iter = page_table_.find(page_id);
+
+  if (iter == page_table_.end()) {
     return false;
   }
-  frame_id_t fid = page_table_.at(page_id);
-  auto &page = pages_[fid];
-  if (page.pin_count_ <= 0) {
+
+  Page *page = &pages_[iter->second];
+
+  if (page->pin_count_ <= 0) {
     return false;
   }
 
   if (is_dirty) {
-    page.is_dirty_ = true;
+    page->is_dirty_ = true;
   }
 
-  page.pin_count_--;
-  if (page.pin_count_ == 0) {
-    replacer_->SetEvictable(fid, true);
-  }
-
+  page->pin_count_--;
+  replacer_->SetEvictable(iter->second, true);
   return true;
 }
 
+/**
+ * TODO(P1): Add implementation
+ *
+ * @brief Flush the target page to disk.
+ *
+ * Use the DiskManager::WritePage() method to flush a page to disk, REGARDLESS of the dirty flag.
+ * Unset the dirty flag of the page after flushing.
+ *
+ * @param page_id id of page to be flushed, cannot be INVALID_PAGE_ID
+ * @return false if the page could not be found in the page table, true otherwise
+ */
 auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
   std::scoped_lock<std::mutex> _(latch_);
-  if (page_table_.count(page_id) == 0U) {
+
+  auto iter = page_table_.find(page_id);
+  if (iter == page_table_.end()) {
     return false;
   }
-  frame_id_t frame_id = page_table_.at(page_id);
-  auto &page = pages_[frame_id];
-  return DumpPage(page);
+
+  Page *page = &pages_[iter->second];
+  if (page->IsDirty()) {
+    WritePage(page);
+  }
+  return true;
 }
 
 void BufferPoolManager::FlushAllPages() {
   std::scoped_lock<std::mutex> _(latch_);
-  for (auto [_, fid] : page_table_) {
-    auto &page = pages_[fid];
-    DumpPage(page);
+
+  for (const auto [_, fid] : page_table_) {
+    auto page = &pages_[fid];
+    if (page->IsDirty()) {
+      WritePage(page);
+    }
   }
 }
 
+/**
+ * TODO(P1): Add implementation
+ *
+ * @brief Delete a page from the buffer pool. If page_id is not in the buffer pool, do nothing and return true. If the
+ * page is pinned and cannot be deleted, return false immediately.
+ *
+ * After deleting the page from the page table, stop tracking the frame in the replacer and add the frame
+ * back to the free list. Also, reset the page's memory and metadata. Finally, you should call DeallocatePage() to
+ * imitate freeing the page on the disk.
+ *
+ * @param page_id id of page to be deleted
+ * @return false if the page exists but could not be deleted, true if the page didn't exist or deletion succeeded
+ */
 auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
   std::scoped_lock<std::mutex> _(latch_);
-  if (page_table_.count(page_id) == 0U) {
+
+  auto iter = page_table_.find(page_id);
+
+  if (iter == page_table_.end()) {
     return true;
   }
-  frame_id_t fid = page_table_.at(page_id);
-  auto &page = pages_[fid];
-  if (page.pin_count_ == 0) {
-    if (page.is_dirty_) {
-      DumpPage(page);
-    }
-    replacer_->Remove(fid);
-    page_table_.erase(page_id);
-    return true;
-  }
-  return false;
-}
 
-auto BufferPoolManager::DumpPage(Page &page) -> bool {
-  page.WLatch();
-
-  if (page.page_id_ == INVALID_PAGE_ID or not page.is_dirty_) {
-    page.rwlatch_.WUnlock();
+  Page *page = &pages_[iter->second];
+  if (page->pin_count_ > 0) {
     return false;
   }
 
-  DiskRequest req;
+  frame_id_t fid = iter->second;
 
-  auto promise = disk_scheduler_->CreatePromise();
-  auto future = promise.get_future();
+  page_table_.erase(page_id);
+  replacer_->Remove(fid);
 
-  req.is_write_ = true;
-  req.callback_ = std::move(promise);
-  req.data_ = page.data_;
-  req.page_id_ = page.page_id_;
+  SwapPage(page, INVALID_PAGE_ID);
+  free_list_.push_back(fid);
 
-  disk_scheduler_->Schedule(std::move(req));
+  DeallocatePage(page_id);
 
-  bool res = future.get();
-
-  // 如果写成功, 那么页面就不是脏的
-  page.is_dirty_ = !res;
-
-  page.WUnlatch();
-
-  return res;
-}
-
-auto BufferPoolManager::LoadPage(Page &page, page_id_t pid) -> bool {
-  page.WLatch();
-  // 理论上磁盘数据不可能比内存新
-  // 但是如果就是需要用旧数据覆盖, 就可能了
-  // if(page.page_id_ == pid) {
-  //   return false;
-  // }
-
-  // BUSTUB_ASSERT(page.pin_count_ == 0, "FOR LOAD OPERATION, YOU SHOULD ENSURE NO REF COUNT!");
-
-  DiskRequest req;
-
-  auto promise = disk_scheduler_->CreatePromise();
-  auto future = promise.get_future();
-
-  req.is_write_ = false;
-  req.callback_ = std::move(promise);
-  req.data_ = page.data_;
-  req.page_id_ = pid;
-
-  //  page.RLatch();
-  disk_scheduler_->Schedule(std::move(req));
-
-  bool res = future.get();
-  //  page.RUnlatch();
-
-  if (res) {
-    page.page_id_ = pid;
-    page.is_dirty_ = false;
-    page.pin_count_ = 0;
-  }
-
-  page.WUnlatch();
-
-  return res;
+  return true;
 }
 
 auto BufferPoolManager::AllocatePage() -> page_id_t { return next_page_id_++; }
@@ -294,5 +313,123 @@ auto BufferPoolManager::FetchPageRead(page_id_t page_id) -> ReadPageGuard { retu
 auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard { return {this, nullptr}; }
 
 auto BufferPoolManager::NewPageGuarded(page_id_t *page_id) -> BasicPageGuard { return {this, nullptr}; }
+
+/**
+ * 只将指定页写入磁盘, 不管页面是否是脏的
+ * 如果当前页面的id无效, 那么不做任何事
+ * 使用之前请上管理锁
+ * @param lpPage 需要写入磁盘的页面的指针
+ * @param is_locked 使用之前页面是否已经上写锁
+ */
+auto BufferPoolManager::WritePage(Page *lpPage, bool is_locked) -> void {
+  if (lpPage->GetPageId() == INVALID_PAGE_ID) {
+    return;
+  }
+
+  if (not is_locked) {
+    lpPage->RLatch();
+    lpPage->pin_count_++;
+  }
+
+  DiskRequest req;
+  auto promise = disk_scheduler_->CreatePromise();
+  auto future = promise.get_future();
+
+  req.is_write_ = true;
+  req.data_ = lpPage->data_;
+  req.page_id_ = lpPage->page_id_;
+  req.callback_ = std::move(promise);
+
+  disk_scheduler_->Schedule(std::move(req));
+
+  future.get();
+
+  lpPage->is_dirty_ = false;
+
+  if (not is_locked) {
+    lpPage->pin_count_--;
+    lpPage->RUnlatch();
+  }
+}
+
+/**
+ * 只将指定页面编号的页面读入内存
+ * 如果page_to_read是INVALID_PAGE_ID, 那么将页初始化
+ * 如果页面脏, 不会自动写入磁盘, 如果需要自动写入, 请使用SwapPage
+ * 使用之前请上管理锁
+ * @param lpPage 需要读入的页面的指针
+ * @param page_to_read 指定页面的编号
+ * @param is_locked 使用之前页面是否已经上写锁
+ */
+auto BufferPoolManager::ReadPage(Page *lpPage, page_id_t page_to_read, bool is_locked) -> void {
+  if (not is_locked) {
+    lpPage->WLatch();
+    lpPage->pin_count_++;
+  }
+
+  // 如果还有线程在使用页
+  BUSTUB_ASSERT(lpPage->pin_count_ != 0, "ReadPage called while page is using by someone.");
+
+  // 如果提供的ID有效
+  if (page_to_read != INVALID_PAGE_ID) {
+    DiskRequest req;
+    auto promise = disk_scheduler_->CreatePromise();
+    auto future = promise.get_future();
+
+    req.is_write_ = false;
+    req.data_ = lpPage->data_;
+    req.page_id_ = page_to_read;
+    req.callback_ = std::move(promise);
+
+    disk_scheduler_->Schedule(std::move(req));
+
+    future.get();
+  }
+  // 如果提供的是个无效ID
+  else {
+    lpPage->ResetMemory();
+  }
+
+  lpPage->is_dirty_ = false;
+  lpPage->page_id_ = page_to_read;
+
+  if (not is_locked) {
+    lpPage->pin_count_--;
+    lpPage->WUnlatch();
+  }
+}
+
+/**
+ * 将指定页面交换进内存
+ * 如果当前页面脏, 会自动写入磁盘
+ * 相当于一次Write(如果页面脏的话), 一次Read
+ * 使用之前请上管理锁
+ * @param page_to_swap 需要交换的页面的指针
+ * @param swap_to 交换成的页面id
+ * @param is_locked 使用之前页面是否已经上写锁
+ */
+auto BufferPoolManager::SwapPage(Page *page_to_swap, page_id_t swap_to, bool is_locked) -> void {
+  if (not is_locked) {
+    page_to_swap->WLatch();
+    page_to_swap->pin_count_++;
+  }
+
+  if (page_to_swap->IsDirty()) {
+    WritePage(page_to_swap, true);
+  }
+
+  auto pid = page_to_swap->page_id_;
+  auto fid = static_cast<frame_id_t>(page_to_swap - pages_);
+
+  ReadPage(page_to_swap, swap_to, true);
+
+  replacer_->Remove(fid);
+  page_table_.erase(pid);
+
+  if (not is_locked) {
+    page_to_swap->pin_count_--;
+    page_to_swap->WUnlatch();
+  }
+}
 
 }  // namespace bustub
