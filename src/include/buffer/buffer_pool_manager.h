@@ -172,10 +172,10 @@ class BufferPoolManager {
    */
   auto DeletePage(page_id_t page_id) -> bool;
   auto WritePage(Page *lpPage, bool is_locked = false) -> void;
-  auto ReadPage(Page *lpPage, page_id_t page_to_read ,bool is_locked = false) -> void ;
-  auto SwapPage(Page *page_to_swap, page_id_t swap_to , bool is_locked = false) -> void;
+  auto ReadPage(Page *lpPage, page_id_t page_to_read, bool is_locked = false) -> void;
+  auto SwapPage(Page *page_to_swap, page_id_t swap_to, bool is_locked = false) -> void;
 
-      private:
+ private:
   /** Number of pages in the buffer pool. */
   const size_t pool_size_;
   /** The next page id to be allocated  */
