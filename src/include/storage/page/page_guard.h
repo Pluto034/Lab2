@@ -2,6 +2,30 @@
 
 #include "storage/page/page.h"
 
+#define DBG
+
+#ifdef DBG
+#define Log(...)                                                              \
+  std::cerr << __FILE__ << ":" << __func__ << " : " << __LINE__ << std::endl; \
+  std::cerr << #__VA_ARGS__ << std::endl;                                     \
+  Out(__VA_ARGS__);                                                           \
+  std::cerr << std::endl;
+#else
+#define Log(...)
+#endif
+
+auto Out() -> std::ostream &;
+
+template <class T>
+auto Out(T first) -> auto & {
+  return (Out() << first);
+}
+template <class T, class... Args>
+auto Out(T first, Args... args) -> auto & {
+  Out() << first << ' ';
+  return Out(args...);
+}
+
 namespace bustub {
 
 class BufferPoolManager;
@@ -9,10 +33,14 @@ class ReadPageGuard;
 class WritePageGuard;
 
 class BasicPageGuard {
+ private:
+  auto Reset() -> void;
+  auto Copy(const BasicPageGuard &other) -> void;
+
  public:
   BasicPageGuard() = default;
 
-  BasicPageGuard(BufferPoolManager *bpm, Page *page) : bpm_(bpm), page_(page) {}
+  BasicPageGuard(BufferPoolManager *bpm, Page *page);
 
   BasicPageGuard(const BasicPageGuard &) = delete;
   auto operator=(const BasicPageGuard &) -> BasicPageGuard & = delete;
@@ -83,9 +111,9 @@ class BasicPageGuard {
    */
   auto UpgradeWrite() -> WritePageGuard;
 
-  auto PageId() -> page_id_t { return page_->GetPageId(); }
+  auto PageId() -> page_id_t;
 
-  auto GetData() -> const char * { return page_->GetData(); }
+  auto GetData() -> const char *;
 
   template <class T>
   auto As() -> const T * {
@@ -106,7 +134,7 @@ class BasicPageGuard {
   friend class ReadPageGuard;
   friend class WritePageGuard;
 
-  [[maybe_unused]] BufferPoolManager *bpm_{nullptr};
+  BufferPoolManager *bpm_{nullptr};
   Page *page_{nullptr};
   bool is_dirty_{false};
 };
@@ -114,7 +142,7 @@ class BasicPageGuard {
 class ReadPageGuard {
  public:
   ReadPageGuard() = default;
-  ReadPageGuard(BufferPoolManager *bpm, Page *page) : guard_(bpm, page) {}
+  ReadPageGuard(BufferPoolManager *bpm, Page *page);
   ReadPageGuard(const ReadPageGuard &) = delete;
   auto operator=(const ReadPageGuard &) -> ReadPageGuard & = delete;
 
@@ -157,9 +185,9 @@ class ReadPageGuard {
    */
   ~ReadPageGuard();
 
-  auto PageId() -> page_id_t { return guard_.PageId(); }
+  auto PageId() -> page_id_t;
 
-  auto GetData() -> const char * { return guard_.GetData(); }
+  auto GetData() -> const char *;
 
   template <class T>
   auto As() -> const T * {
@@ -167,14 +195,17 @@ class ReadPageGuard {
   }
 
  private:
+  explicit ReadPageGuard(BasicPageGuard &&);
+
   // You may choose to get rid of this and add your own private variables.
+  friend class BasicPageGuard;
   BasicPageGuard guard_;
 };
 
 class WritePageGuard {
  public:
   WritePageGuard() = default;
-  WritePageGuard(BufferPoolManager *bpm, Page *page) : guard_(bpm, page) {}
+  WritePageGuard(BufferPoolManager *bpm, Page *page);
   WritePageGuard(const WritePageGuard &) = delete;
   auto operator=(const WritePageGuard &) -> WritePageGuard & = delete;
 
@@ -217,9 +248,9 @@ class WritePageGuard {
    */
   ~WritePageGuard();
 
-  auto PageId() -> page_id_t { return guard_.PageId(); }
+  auto PageId() -> page_id_t;
 
-  auto GetData() -> const char * { return guard_.GetData(); }
+  auto GetData() -> const char *;
 
   template <class T>
   auto As() -> const T * {
@@ -234,7 +265,10 @@ class WritePageGuard {
   }
 
  private:
+  explicit WritePageGuard(BasicPageGuard &&);
   // You may choose to get rid of this and add your own private variables.
+  friend class BasicPageGuard;
+
   BasicPageGuard guard_;
 };
 

@@ -23,6 +23,8 @@
 #include "common/config.h"
 #include "common/macros.h"
 
+#include <iostream>
+
 namespace bustub {
 
 enum class AccessType { Unknown = 0, Lookup, Scan, Index };
@@ -81,7 +83,7 @@ class LRUKNode {
     }
     size_ = k_;
     if (k_last_ != history_.end()) {
-      k_last_ = history_.erase(std::next(k_last_), history_.end());
+      k_last_ = std::prev(history_.erase(std::next(k_last_), history_.end()));
     }
   }
 

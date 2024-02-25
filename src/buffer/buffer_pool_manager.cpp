@@ -18,29 +18,6 @@
 
 namespace bustub {
 
-#define DBG
-
-#ifdef DBG
-#define Log(...)                               \
-  std::cerr << __func__ << " : " << std::endl; \
-  std::cerr << #__VA_ARGS__ << std::endl;      \
-  Out(__VA_ARGS__);                            \
-  std::cerr << std::endl;
-#else
-#define Log(...)
-#endif
-
-auto Out() -> auto & { return (std::cerr); }
-template <class T>
-auto Out(T first) -> auto & {
-  return (Out() << first);
-}
-template <class T, class... Args>
-auto Out(T first, Args... args) -> auto & {
-  Out() << first << ' ';
-  return Out(args...);
-}
-
 BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager, size_t replacer_k,
                                      LogManager *log_manager)
     : pool_size_(pool_size), disk_scheduler_(std::make_unique<DiskScheduler>(disk_manager)), log_manager_(log_manager) {
@@ -50,6 +27,7 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
 
   // we allocate a consecutive memory space for the buffer pool
   pages_ = new Page[pool_size_];
+  std::cerr << "k:" << replacer_k << std::endl;
   replacer_ = std::make_unique<LRUKReplacer>(pool_size, replacer_k);
 
   // Initially, every page is in the free list.
@@ -58,7 +36,11 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
   }
 }
 
-BufferPoolManager::~BufferPoolManager() { delete[] pages_; }
+BufferPoolManager::~BufferPoolManager() {
+  std::scoped_lock<std::mutex> _(latch_);
+  this->replacer_.reset();
+  delete[] pages_;
+}
 
 /**
  * TODO(P1): Add implementation
@@ -134,7 +116,6 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
  */
 auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType access_type) -> Page * {
   std::scoped_lock<std::mutex> _(latch_);
-
   auto iter = page_table_.find(page_id);
   if (iter != page_table_.end()) {
     frame_id_t fid = iter->second;
@@ -306,13 +287,31 @@ auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
 
 auto BufferPoolManager::AllocatePage() -> page_id_t { return next_page_id_++; }
 
-auto BufferPoolManager::FetchPageBasic(page_id_t page_id) -> BasicPageGuard { return {this, nullptr}; }
+auto BufferPoolManager::FetchPageBasic(page_id_t page_id) -> BasicPageGuard {
+  auto page = FetchPage(page_id);
+  return {this, page};
+}
 
-auto BufferPoolManager::FetchPageRead(page_id_t page_id) -> ReadPageGuard { return {this, nullptr}; }
+auto BufferPoolManager::FetchPageRead(page_id_t page_id) -> ReadPageGuard {
+  auto page = FetchPage(page_id);
+  if (page != nullptr) {
+    page->RLatch();
+  }
+  return {this, page};
+}
 
-auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard { return {this, nullptr}; }
+auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard {
+  auto page = FetchPage(page_id);
+  if (page != nullptr) {
+    page->WLatch();
+  }
+  return {this, page};
+}
 
-auto BufferPoolManager::NewPageGuarded(page_id_t *page_id) -> BasicPageGuard { return {this, nullptr}; }
+auto BufferPoolManager::NewPageGuarded(page_id_t *page_id) -> BasicPageGuard {
+  auto page = NewPage(page_id);
+  return {this, page};
+}
 
 /**
  * 只将指定页写入磁盘, 不管页面是否是脏的
@@ -327,7 +326,7 @@ auto BufferPoolManager::WritePage(Page *lpPage, bool is_locked) -> void {
   }
 
   if (not is_locked) {
-    lpPage->RLatch();
+    // lpPage->RLatch();
     lpPage->pin_count_++;
   }
 
@@ -348,7 +347,7 @@ auto BufferPoolManager::WritePage(Page *lpPage, bool is_locked) -> void {
 
   if (not is_locked) {
     lpPage->pin_count_--;
-    lpPage->RUnlatch();
+    // lpPage->RUnlatch();
   }
 }
 
@@ -363,7 +362,7 @@ auto BufferPoolManager::WritePage(Page *lpPage, bool is_locked) -> void {
  */
 auto BufferPoolManager::ReadPage(Page *lpPage, page_id_t page_to_read, bool is_locked) -> void {
   if (not is_locked) {
-    lpPage->WLatch();
+    // lpPage->WLatch();
     lpPage->pin_count_++;
   }
 
@@ -395,7 +394,7 @@ auto BufferPoolManager::ReadPage(Page *lpPage, page_id_t page_to_read, bool is_l
 
   if (not is_locked) {
     lpPage->pin_count_--;
-    lpPage->WUnlatch();
+    // lpPage->WUnlatch();
   }
 }
 
@@ -410,7 +409,7 @@ auto BufferPoolManager::ReadPage(Page *lpPage, page_id_t page_to_read, bool is_l
  */
 auto BufferPoolManager::SwapPage(Page *page_to_swap, page_id_t swap_to, bool is_locked) -> void {
   if (not is_locked) {
-    page_to_swap->WLatch();
+    // page_to_swap->WLatch();
     page_to_swap->pin_count_++;
   }
 
@@ -428,7 +427,7 @@ auto BufferPoolManager::SwapPage(Page *page_to_swap, page_id_t swap_to, bool is_
 
   if (not is_locked) {
     page_to_swap->pin_count_--;
-    page_to_swap->WUnlatch();
+    // page_to_swap->WUnlatch();
   }
 }
 
