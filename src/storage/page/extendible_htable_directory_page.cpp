@@ -21,45 +21,72 @@
 namespace bustub {
 
 void ExtendibleHTableDirectoryPage::Init(uint32_t max_depth) {
-  throw NotImplementedException("ExtendibleHTableDirectoryPage is not implemented");
+  this->max_depth_ = max_depth;
+  this->global_depth_ = 0;
+  std::fill(std::begin(this->local_depths_),std::end(this->local_depths_),0);
+  std::fill(std::begin(this->bucket_page_ids_),std::end(this->bucket_page_ids_),INVALID_PAGE_ID);
+  // throw NotImplementedException("ExtendibleHTableDirectoryPage is not implemented");
 }
 
-auto ExtendibleHTableDirectoryPage::HashToBucketIndex(uint32_t hash) const -> uint32_t { return 0; }
+auto ExtendibleHTableDirectoryPage::HashToBucketIndex(uint32_t hash) const -> uint32_t {
+  auto mask = HTABLE_DIRECTORY_ARRAY_SIZE-1;
+  return hash&mask;
+}
 
-auto ExtendibleHTableDirectoryPage::GetBucketPageId(uint32_t bucket_idx) const -> page_id_t { return INVALID_PAGE_ID; }
+auto ExtendibleHTableDirectoryPage::GetBucketPageId(uint32_t bucket_idx) const -> page_id_t {
+  return this->bucket_page_ids_[bucket_idx];
+}
 
 void ExtendibleHTableDirectoryPage::SetBucketPageId(uint32_t bucket_idx, page_id_t bucket_page_id) {
-  throw NotImplementedException("ExtendibleHTableDirectoryPage is not implemented");
+  this->bucket_page_ids_[bucket_idx] = bucket_page_id;
+  // throw NotImplementedException("ExtendibleHTableDirectoryPage is not implemented");
 }
 
-auto ExtendibleHTableDirectoryPage::GetSplitImageIndex(uint32_t bucket_idx) const -> uint32_t { return 0; }
+auto ExtendibleHTableDirectoryPage::GetSplitImageIndex(uint32_t bucket_idx) const -> uint32_t {
+  auto depth = this->local_depths_[bucket_idx];
+  return (uint32_t(1)<<depth)^bucket_idx;
+  // throw NotImplementedException("ExtendibleHTableDirectoryPage is not implemented");
+}
 
-auto ExtendibleHTableDirectoryPage::GetGlobalDepth() const -> uint32_t { return 0; }
+auto ExtendibleHTableDirectoryPage::GetGlobalDepth() const -> uint32_t { return this->global_depth_; }
 
 void ExtendibleHTableDirectoryPage::IncrGlobalDepth() {
-  throw NotImplementedException("ExtendibleHTableDirectoryPage is not implemented");
+  this->global_depth_ ++;
+  // throw NotImplementedException("ExtendibleHTableDirectoryPage is not implemented");
 }
 
 void ExtendibleHTableDirectoryPage::DecrGlobalDepth() {
-  throw NotImplementedException("ExtendibleHTableDirectoryPage is not implemented");
+  this->global_depth_ --;
+  // throw NotImplementedException("ExtendibleHTableDirectoryPage is not implemented");
 }
 
-auto ExtendibleHTableDirectoryPage::CanShrink() -> bool { return false; }
+auto ExtendibleHTableDirectoryPage::CanShrink() -> bool {
+  return std::all_of(std::begin(this->local_depths_), std::end(this->local_depths_),
+                     [this](auto item) { return item < this->global_depth_; });
+}
 
-auto ExtendibleHTableDirectoryPage::Size() const -> uint32_t { return 0; }
+auto ExtendibleHTableDirectoryPage::Size() const -> uint32_t {
+  return uint32_t(1)<<this->global_depth_;
+  // throw NotImplementedException("ExtendibleHTableDirectoryPage is not implemented");
+}
 
-auto ExtendibleHTableDirectoryPage::GetLocalDepth(uint32_t bucket_idx) const -> uint32_t { return 0; }
+auto ExtendibleHTableDirectoryPage::GetLocalDepth(uint32_t bucket_idx) const -> uint32_t {
+  return this->local_depths_[bucket_idx];
+}
 
 void ExtendibleHTableDirectoryPage::SetLocalDepth(uint32_t bucket_idx, uint8_t local_depth) {
-  throw NotImplementedException("ExtendibleHTableDirectoryPage is not implemented");
+  this->local_depths_[bucket_idx] = local_depth;
+  // throw NotImplementedException("ExtendibleHTableDirectoryPage is not implemented");
 }
 
 void ExtendibleHTableDirectoryPage::IncrLocalDepth(uint32_t bucket_idx) {
-  throw NotImplementedException("ExtendibleHTableDirectoryPage is not implemented");
+  this->local_depths_[bucket_idx] ++;
+  // throw NotImplementedException("ExtendibleHTableDirectoryPage is not implemented");
 }
 
 void ExtendibleHTableDirectoryPage::DecrLocalDepth(uint32_t bucket_idx) {
-  throw NotImplementedException("ExtendibleHTableDirectoryPage is not implemented");
+  this->local_depths_[bucket_idx] --;
+  // throw NotImplementedException("ExtendibleHTableDirectoryPage is not implemented");
 }
 
 }  // namespace bustub

@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <mutex>
 #include <cstdlib>
 #include "common/config.h"
 #include "common/macros.h"
