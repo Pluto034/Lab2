@@ -47,7 +47,6 @@ auto ExtendibleHTableDirectoryPage::GetSplitImageIndex(uint32_t bucket_idx) cons
   //    now ^= (1 << (global_depth_ - 1));
   //  }
   //  return now;
-  //  return 999;
   return bucket_idx ^ (1u << local_depths_[bucket_idx]);
 }
 
