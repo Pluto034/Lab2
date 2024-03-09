@@ -61,8 +61,8 @@ BasicPageGuard::~BasicPageGuard() {
 auto BasicPageGuard::UpgradeRead() -> ReadPageGuard {
   //  std::cerr << "UpgradeRead"
   //            << "\n";
-//  int64_t tid = syscall((__NR_gettid));
-//  std::cout << "Current thread: " << tid << std::endl;
+  //  int64_t tid = syscall((__NR_gettid));
+  //  std::cout << "Current thread: " << tid << std::endl;
   if (page_ == nullptr) {
     return {nullptr, nullptr};
   }
@@ -119,8 +119,8 @@ ReadPageGuard::~ReadPageGuard() {
 auto BasicPageGuard::UpgradeWrite() -> WritePageGuard {
   //  std::cerr << "UpgradeWrite"
   //            << "\n";
-//  int64_t tid = syscall((__NR_gettid));
-//  std::cout << "Current thread: " << tid << std::endl;
+  //  int64_t tid = syscall((__NR_gettid));
+  //  std::cout << "Current thread: " << tid << std::endl;
   if (page_ == nullptr) {
     return {nullptr, nullptr};
   }

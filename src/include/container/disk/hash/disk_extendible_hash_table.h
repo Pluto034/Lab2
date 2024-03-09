@@ -116,11 +116,10 @@ class DiskExtendibleHashTable {
   auto InsertToNewBucket(ExtendibleHTableDirectoryPage *directory, uint32_t bucket_idx, const K &key, const V &value)
       -> bool;
 
+  auto SplitInsertBucket(ExtendibleHTableDirectoryPage *directory, ExtendibleHTableBucketPage<K, V, KC> *bucket_page,
+                         uint32_t bucket_idx, const K &key, const V &value) -> bool;
 
-  auto SplitInsertBucket(ExtendibleHTableDirectoryPage *directory, uint32_t bucket_idx,
-                                                            const K &key, const V &value) -> bool ;
-
-      // member variables
+  // member variables
   std::string index_name_;
   BufferPoolManager *bpm_;
   KC cmp_;

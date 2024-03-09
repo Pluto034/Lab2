@@ -48,7 +48,6 @@ DiskExtendibleHashTable<K, V, KC>::DiskExtendibleHashTable(const std::string &na
   WritePageGuard header_guard = bpm_->NewPageGuarded(&header_page_id_).UpgradeWrite();
   auto header_page = header_guard.AsMut<ExtendibleHTableHeaderPage>();
   header_page->Init(header_max_depth_);
-  header_guard.Drop();
   this->index_name_ = name;
 }
 
@@ -93,6 +92,10 @@ auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *r
 
 template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Transaction *transaction) -> bool {
+  std::vector<V> tmp;
+  if (GetValue(key, &tmp)) {
+    return false;
+  }
   auto hash = Hash(key);
 
   WritePageGuard header_guard = bpm_->FetchPageBasic(header_page_id_).UpgradeWrite();
@@ -112,9 +115,15 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
     return InsertToNewBucket(directory_page, hashLSB, key, value);
   } else {
     WritePageGuard bucket_guard = bpm_->FetchPageBasic(bucket_page_id).UpgradeWrite();
-    auto bucket_page = bucket_guard.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+    ExtendibleHTableBucketPage<K, V, KC> *bucket_page = bucket_guard.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
     if (bucket_page->IsFull()) {
-      return SplitInsertBucket(directory_page, hashLSB, key, value);
+      if (SplitInsertBucket(directory_page, bucket_page, hashLSB, key, value)) {
+        bucket_guard.Drop();
+        directory_guard.Drop();
+        header_guard.Drop();
+        return Insert(key, value);
+      } else
+        return false;
     } else {
       bucket_page->Insert(key, value, cmp_);
       return true;
@@ -139,17 +148,18 @@ auto DiskExtendibleHashTable<K, V, KC>::InsertToNewBucket(ExtendibleHTableDirect
   page_id_t bucket_page_id;
   WritePageGuard bucket_guard = bpm_->NewPageGuarded(&bucket_page_id).UpgradeWrite();
   auto bucket_page = bucket_guard.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
-  bucket_page->Init(bucket_max_size_);
   directory->SetBucketPageId(bucket_idx, bucket_page_id);
+  bucket_page->Init(bucket_max_size_);
   bucket_page->Insert(key, value, cmp_);
   return true;
 }
 template <typename K, typename V, typename KC>
-auto DiskExtendibleHashTable<K, V, KC>::SplitInsertBucket(ExtendibleHTableDirectoryPage *directory, uint32_t bucket_idx,
-                                                          const K &key, const V &value) -> bool {
-  page_id_t bucket_page_id = directory->GetBucketPageId(bucket_idx);
-  WritePageGuard bucket_guard = bpm_->FetchPageWrite(bucket_page_id);
-  auto bucket_page = bucket_guard.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+auto DiskExtendibleHashTable<K, V, KC>::SplitInsertBucket(ExtendibleHTableDirectoryPage *directory,
+                                                          ExtendibleHTableBucketPage<K, V, KC> *bucket_page,
+                                                          uint32_t bucket_idx, const K &key, const V &value) -> bool {
+  //  page_id_t bucket_page_id = directory->GetBucketPageId(bucket_idx);
+  //  WritePageGuard bucket_guard = bpm_->FetchPageWrite(bucket_page_id);
+  //  auto bucket_page = bucket_guard.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
 
   if (directory->GetLocalDepth(bucket_idx) == directory_max_depth_) {
     return false;
@@ -170,7 +180,7 @@ auto DiskExtendibleHashTable<K, V, KC>::SplitInsertBucket(ExtendibleHTableDirect
 
   auto mod = 1u << directory->GetLocalDepth(bucket_idx);
 
-  if (directory->GetGlobalDepth() == directory->GetLocalDepth(bucket_idx) - 1) {
+  if (directory->GetGlobalDepth() + 1 == directory->GetLocalDepth(bucket_idx)) {
     directory->IncrGlobalDepth();
   }
 
@@ -184,7 +194,7 @@ auto DiskExtendibleHashTable<K, V, KC>::SplitInsertBucket(ExtendibleHTableDirect
   }
   directory->SetBucketPageId(new_bucket_idx, new_bucket_page_id);
 
-  return Insert(key, value);
+  return true;
 }
 
 /*****************************************************************************
@@ -192,7 +202,27 @@ auto DiskExtendibleHashTable<K, V, KC>::SplitInsertBucket(ExtendibleHTableDirect
  *****************************************************************************/
 template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transaction) -> bool {
-  return false;
+  auto hash = Hash(key);
+
+  WritePageGuard header_guard = bpm_->FetchPageBasic(header_page_id_).UpgradeWrite();
+  auto header_page = header_guard.AsMut<ExtendibleHTableHeaderPage>();
+  auto hashMSB = header_page->HashToDirectoryIndex(hash);
+  page_id_t directory_page_id = header_page->GetDirectoryPageId(hashMSB);
+  if (directory_page_id == INVALID_PAGE_ID) {
+    return false;
+  }
+
+  WritePageGuard directory_guard = bpm_->FetchPageBasic(directory_page_id).UpgradeWrite();
+  auto directory_page = directory_guard.AsMut<ExtendibleHTableDirectoryPage>();
+  auto hashLSB = directory_page->HashToBucketIndex(hash);
+  page_id_t bucket_page_id = directory_page->GetBucketPageId(hashLSB);
+  if (bucket_page_id == INVALID_PAGE_ID) {
+    return false;
+  } else {
+    WritePageGuard bucket_guard = bpm_->FetchPageBasic(bucket_page_id).UpgradeWrite();
+    auto bucket_page = bucket_guard.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+    return bucket_page->Remove(key, this->cmp_);
+  }
 }
 
 template class DiskExtendibleHashTable<int, int, IntComparator>;
