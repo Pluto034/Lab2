@@ -36,6 +36,9 @@ namespace bustub {
  */
 template <typename K, typename V, typename KC>
 class DiskExtendibleHashTable {
+  using Getter = page_id_t (*)(uint32_t);
+  using Setter = void (*)(uint32_t, page_id_t);
+
  public:
   /**
    * @brief Creates a new DiskExtendibleHashTable.
@@ -110,6 +113,10 @@ class DiskExtendibleHashTable {
    */
   auto Hash(K key) const -> uint32_t;
 
+  auto InsertToBucket(ExtendibleHTableDirectoryPage *directory, uint32_t bucket_idx,
+                      ExtendibleHTableBucketPage<K, V, KC> *lp_bucket, const K &key, const V &value) -> bool;
+
+  /*
   auto InsertToNewDirectory(ExtendibleHTableHeaderPage *header, uint32_t directory_idx, uint32_t hash, const K &key,
                             const V &value) -> bool;
 
@@ -122,6 +129,12 @@ class DiskExtendibleHashTable {
   void MigrateEntries(ExtendibleHTableBucketPage<K, V, KC> *old_bucket,
                       ExtendibleHTableBucketPage<K, V, KC> *new_bucket, uint32_t new_bucket_idx,
                       uint32_t local_depth_mask);
+  */
+
+  template <typename PageType>
+  auto GetWriteablePage(page_id_t &lp_page, uint32_t parm) -> WritePageGuard;
+  template <typename PageType>
+  auto GetReadablePage(page_id_t &lp_page, uint32_t parm) -> ReadPageGuard;
 
   // member variables
   std::string index_name_;

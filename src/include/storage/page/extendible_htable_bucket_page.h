@@ -131,6 +131,8 @@ class ExtendibleHTableBucketPage {
    */
   void PrintBucket() const;
 
+  auto contains(const KeyType &key, const KeyComparator &cmp) const -> bool;
+
  private:
   uint32_t size_;
   uint32_t max_size_;

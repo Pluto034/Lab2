@@ -19,8 +19,8 @@
 
 #pragma once
 
-#include <mutex>
 #include <cstdlib>
+#include <mutex>
 #include "common/config.h"
 #include "common/macros.h"
 
