@@ -45,11 +45,10 @@ DiskExtendibleHashTable<K, V, KC>::DiskExtendibleHashTable(const std::string &na
   //  auto header = Header.AsMut<ExtendibleHTableHeaderPage>();
   //  header->Init(header_max_depth);
   //  Header.Drop();
-  BasicPageGuard header_guard = bpm_->NewPageGuarded(&header_page_id_);
+  WritePageGuard header_guard = bpm_->NewPageGuarded(&header_page_id_).UpgradeWrite();
   auto header_page = header_guard.AsMut<ExtendibleHTableHeaderPage>();
   header_page->Init(header_max_depth_);
   header_guard.Drop();
-
   this->index_name_ = name;
 }
 
@@ -96,7 +95,7 @@ template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Transaction *transaction) -> bool {
   auto hash = Hash(key);
 
-  BasicPageGuard header_guard = bpm_->FetchPageBasic(header_page_id_);
+  WritePageGuard header_guard = bpm_->FetchPageBasic(header_page_id_).UpgradeWrite();
   auto header_page = header_guard.AsMut<ExtendibleHTableHeaderPage>();
   auto hashMSB = header_page->HashToDirectoryIndex(hash);
   page_id_t directory_page_id = header_page->GetDirectoryPageId(hashMSB);
@@ -105,18 +104,17 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
     directory_page_id = header_page->GetDirectoryPageId(hashMSB);
   }
 
-  BasicPageGuard directory_guard = bpm_->FetchPageBasic(directory_page_id);
+  WritePageGuard directory_guard = bpm_->FetchPageBasic(directory_page_id).UpgradeWrite();
   auto directory_page = directory_guard.AsMut<ExtendibleHTableDirectoryPage>();
   auto hashLSB = directory_page->HashToBucketIndex(hash);
   page_id_t bucket_page_id = directory_page->GetBucketPageId(hashLSB);
   if (bucket_page_id == INVALID_PAGE_ID) {
     return InsertToNewBucket(directory_page, hashLSB, key, value);
   } else {
-    BasicPageGuard bucket_guard = bpm_->FetchPageBasic(bucket_page_id);
+    WritePageGuard bucket_guard = bpm_->FetchPageBasic(bucket_page_id).UpgradeWrite();
     auto bucket_page = bucket_guard.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
     if (bucket_page->IsFull()) {
       return SplitInsertBucket(directory_page, hashLSB, key, value);
-
     } else {
       bucket_page->Insert(key, value, cmp_);
       return true;
@@ -128,7 +126,7 @@ template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::InsertToNewDirectory(ExtendibleHTableHeaderPage *header, uint32_t directory_idx,
                                                              uint32_t hash, const K &key, const V &value) -> bool {
   page_id_t directory_page_id;
-  BasicPageGuard directory_guard = bpm_->NewPageGuarded(&directory_page_id);
+  WritePageGuard directory_guard = bpm_->NewPageGuarded(&directory_page_id).UpgradeWrite();
   auto directory_page = directory_guard.AsMut<ExtendibleHTableDirectoryPage>();
   directory_page->Init(directory_max_depth_);
   header->SetDirectoryPageId(directory_idx, directory_page_id);
@@ -139,7 +137,7 @@ template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::InsertToNewBucket(ExtendibleHTableDirectoryPage *directory, uint32_t bucket_idx,
                                                           const K &key, const V &value) -> bool {
   page_id_t bucket_page_id;
-  BasicPageGuard bucket_guard = bpm_->NewPageGuarded(&bucket_page_id);
+  WritePageGuard bucket_guard = bpm_->NewPageGuarded(&bucket_page_id).UpgradeWrite();
   auto bucket_page = bucket_guard.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
   bucket_page->Init(bucket_max_size_);
   directory->SetBucketPageId(bucket_idx, bucket_page_id);
@@ -150,7 +148,7 @@ template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::SplitInsertBucket(ExtendibleHTableDirectoryPage *directory, uint32_t bucket_idx,
                                                           const K &key, const V &value) -> bool {
   page_id_t bucket_page_id = directory->GetBucketPageId(bucket_idx);
-  BasicPageGuard bucket_guard = bpm_->FetchPageBasic(bucket_page_id);
+  WritePageGuard bucket_guard = bpm_->FetchPageWrite(bucket_page_id);
   auto bucket_page = bucket_guard.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
 
   if (directory->GetLocalDepth(bucket_idx) == directory_max_depth_) {
@@ -161,7 +159,7 @@ auto DiskExtendibleHashTable<K, V, KC>::SplitInsertBucket(ExtendibleHTableDirect
   directory->IncrLocalDepth(bucket_idx);
 
   page_id_t new_bucket_page_id;
-  BasicPageGuard new_bucket_guard = bpm_->NewPageGuarded(&new_bucket_page_id);
+  WritePageGuard new_bucket_guard = bpm_->NewPageGuarded(&new_bucket_page_id).UpgradeWrite();
   auto new_bucket_page = new_bucket_guard.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
   new_bucket_page->Init(bucket_max_size_);
 
@@ -184,18 +182,9 @@ auto DiskExtendibleHashTable<K, V, KC>::SplitInsertBucket(ExtendibleHTableDirect
       bucket_page->RemoveAt(i);
     }
   }
-  //  auto tmp_GlobalDepth = directory->GetGlobalDepth();
-
   directory->SetBucketPageId(new_bucket_idx, new_bucket_page_id);
-  //  for (uint32_t i = 0; i < (1u << (tmp_GlobalDepth + 1)); i++) {
-  ////    local_depths_[i] = local_depths_[i - (1u << (global_depth_))];
-  //    if(i)
-  //    bucket_page_ids_[i] = bucket_page_ids_[i - (1u << (global_depth_))];
-  //  }
 
   return Insert(key, value);
-
-  return true;
 }
 
 /*****************************************************************************

@@ -62,8 +62,8 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
 BufferPoolManager::~BufferPoolManager() { delete[] pages_; }
 
 auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
-//  std::cerr << "NewPage: " << page_id << std::endl;
-//
+  //  std::cerr << "NewPage: " << page_id << std::endl;
+  //
   int64_t tid = syscall((__NR_gettid));
   std::cout << "Current thread: " << tid << std::endl;
   std::unique_lock<std::mutex> lock(latch_);
@@ -110,8 +110,8 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
 }
 
 auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType access_type) -> Page * {
-//  std::cerr << "Fetch: " << page_id << std::endl;
-//
+  //  std::cerr << "Fetch: " << page_id << std::endl;
+  //
   std::unique_lock<std::mutex> lock(latch_);
   int64_t tid = syscall((__NR_gettid));
   std::cout << "Current thread: " << tid << std::endl;
@@ -192,9 +192,9 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
 }
 
 auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unused]] AccessType access_type) -> bool {
-//  std::cerr << "UnpinPage:" << page_id << " " << is_dirty << std::endl;
-//  int64_t tid = syscall((__NR_gettid));
-//  std::cout << "Current thread: " << tid << std::endl;
+  //  std::cerr << "UnpinPage:" << page_id << " " << is_dirty << std::endl;
+  //  int64_t tid = syscall((__NR_gettid));
+  //  std::cout << "Current thread: " << tid << std::endl;
   std::unique_lock<std::mutex> lock(latch_);
 
   if (page_table_.find(page_id) == page_table_.end() || pages_[page_table_[page_id]].GetPinCount() == 0) {
@@ -219,8 +219,8 @@ auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unus
 auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
   //  std::unique_lock<std::mutex> lock(latch_);
 
-//  std::cerr << "FlushPage: " << page_id << std::endl;
-//
+  //  std::cerr << "FlushPage: " << page_id << std::endl;
+  //
   if (page_table_.find(page_id) == page_table_.end()) {
     return false;
   }
@@ -251,8 +251,8 @@ void BufferPoolManager::FlushAllPages() {
 }
 
 auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
-//  std::cerr << "Delete:" << page_id << std::endl;
-//
+  //  std::cerr << "Delete:" << page_id << std::endl;
+  //
   std::unique_lock<std::mutex> lock(latch_);
 
   if (page_table_.count(page_id) == 0U) {
@@ -287,23 +287,23 @@ auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
 auto BufferPoolManager::AllocatePage() -> page_id_t { return next_page_id_++; }
 
 auto BufferPoolManager::FetchPageBasic(page_id_t page_id) -> BasicPageGuard {
-//  std::cerr << "FetchPageBasic" << page_id << "\n";
-//  //  std::unique_ptr<Page> page = std::unique_ptr<Page>(FetchPage(page_id));
+  //  std::cerr << "FetchPageBasic" << page_id << "\n";
+  //  //  std::unique_ptr<Page> page = std::unique_ptr<Page>(FetchPage(page_id));
   auto page = FetchPage(page_id);
   return {this, page};
 }
 
 auto BufferPoolManager::FetchPageRead(page_id_t page_id) -> ReadPageGuard {
-//  std::cerr << "FetchPageRead" << page_id << "\n";
-//  //  std::unique_ptr<Page> page = std::unique_ptr<Page>(FetchPage(page_id));
+  //  std::cerr << "FetchPageRead" << page_id << "\n";
+  //  //  std::unique_ptr<Page> page = std::unique_ptr<Page>(FetchPage(page_id));
   auto page = FetchPage(page_id);
   page->RLatch();
   return {this, page};
 }
 
 auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard {
-//  std::cerr << "FetchPageWrite" << page_id << "\n";
-//
+  //  std::cerr << "FetchPageWrite" << page_id << "\n";
+  //
   //  std::unique_ptr<Page> page = std::unique_ptr<Page>(FetchPage(page_id));
   auto page = FetchPage(page_id);
   page->WLatch();
@@ -311,8 +311,8 @@ auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard {
 }
 
 auto BufferPoolManager::NewPageGuarded(page_id_t *page_id) -> BasicPageGuard {
-//  std::cerr << "NewPageGuarded" << page_id << "\n";
-//
+  //  std::cerr << "NewPageGuarded" << page_id << "\n";
+  //
   int64_t tid = syscall((__NR_gettid));
   std::cout << "Current thread: " << tid << std::endl;
   auto page = NewPage(page_id);
@@ -323,8 +323,8 @@ auto BufferPoolManager::WritePage(Page *lpPage, bool is_locked) -> void {
   if (lpPage->GetPageId() == INVALID_PAGE_ID) {
     return;
   }
-//  std::cerr << "BufferPoolManager::WritePage"
-//            << " " << lpPage->GetPageId() << "\n";
+  //  std::cerr << "BufferPoolManager::WritePage"
+  //            << " " << lpPage->GetPageId() << "\n";
   if (not is_locked) {
     lpPage->RLatch();
     lpPage->pin_count_++;
@@ -358,8 +358,8 @@ auto BufferPoolManager::WritePage(Page *lpPage, bool is_locked) -> void {
 }
 
 auto BufferPoolManager::ReadPage(Page *lpPage, page_id_t page_to_read, bool is_locked) -> void {
-//  std::cerr << "BufferPoolManager::WritePage"
-//            << " " << lpPage->GetPageId() << "\n";
+  //  std::cerr << "BufferPoolManager::WritePage"
+  //            << " " << lpPage->GetPageId() << "\n";
   if (not is_locked) {
     lpPage->WLatch();
     lpPage->pin_count_++;
@@ -410,8 +410,8 @@ auto BufferPoolManager::ReadPage(Page *lpPage, page_id_t page_to_read, bool is_l
 }
 
 auto BufferPoolManager::SwapPage(Page *page_to_swap, page_id_t swap_to, bool is_locked) -> void {
-//  std::cerr << "BufferPoolManager::WritePage"
-//            << " " << page_to_swap->GetPageId() << "\n";
+  //  std::cerr << "BufferPoolManager::WritePage"
+  //            << " " << page_to_swap->GetPageId() << "\n";
   if (not is_locked) {
     page_to_swap->WLatch();
     page_to_swap->pin_count_++;

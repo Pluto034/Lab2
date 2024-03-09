@@ -116,18 +116,11 @@ class DiskExtendibleHashTable {
   auto InsertToNewBucket(ExtendibleHTableDirectoryPage *directory, uint32_t bucket_idx, const K &key, const V &value)
       -> bool;
 
-  void UpdateDirectoryMapping(ExtendibleHTableDirectoryPage *directory, uint32_t new_bucket_idx,
-                              page_id_t new_bucket_page_id, uint32_t new_local_depth, uint32_t local_depth_mask);
-
-  void MigrateEntries(ExtendibleHTableBucketPage<K, V, KC> *old_bucket,
-                      ExtendibleHTableBucketPage<K, V, KC> *new_bucket, uint32_t new_bucket_idx,
-                      uint32_t local_depth_mask);
-
 
   auto SplitInsertBucket(ExtendibleHTableDirectoryPage *directory, uint32_t bucket_idx,
-                         const K &key, const V &value) -> bool;
+                                                            const K &key, const V &value) -> bool ;
 
-  // member variables
+      // member variables
   std::string index_name_;
   BufferPoolManager *bpm_;
   KC cmp_;

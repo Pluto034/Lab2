@@ -61,7 +61,7 @@ void ExtendibleHTableDirectoryPage::VerifyIntegrity() const {
   std::unordered_map<page_id_t, uint32_t> page_id_to_ld = std::unordered_map<page_id_t, uint32_t>();
 
   // Verify: (3) The LD is the same at each index with the same bucket_page_id
-  std::cerr<<Size()<<"\n";
+  std::cerr << Size() << "\n";
   for (uint32_t curr_idx = 0; curr_idx < Size(); curr_idx++) {
     page_id_t curr_page_id = bucket_page_ids_[curr_idx];
     uint32_t curr_ld = local_depths_[curr_idx];
