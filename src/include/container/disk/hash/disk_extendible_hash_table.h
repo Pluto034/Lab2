@@ -12,8 +12,11 @@
 
 #pragma once
 
+#include <algorithm>
 #include <deque>
+#include <map>
 #include <queue>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -36,9 +39,6 @@ namespace bustub {
  */
 template <typename K, typename V, typename KC>
 class DiskExtendibleHashTable {
-  using Getter = page_id_t (*)(uint32_t);
-  using Setter = void (*)(uint32_t, page_id_t);
-
  public:
   /**
    * @brief Creates a new DiskExtendibleHashTable.
@@ -92,6 +92,9 @@ class DiskExtendibleHashTable {
    * Helper function to verify the integrity of the extendible hash table's directory.
    */
   void VerifyIntegrity() const;
+
+  auto Merge(ExtendibleHTableDirectoryPage *directory, const ExtendibleHTableBucketPage<K, V, KC> *bucket,
+             page_id_t bucket_page_id, uint32_t bucket_idx) -> bool;
 
   /**
    * Helper function to expose the header page id.

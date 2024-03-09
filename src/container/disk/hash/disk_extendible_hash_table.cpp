@@ -93,6 +93,7 @@ auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *r
 
 template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Transaction *transaction) -> bool {
+  std::cerr << "Insert: " << key << std::endl;
   auto hash = Hash(key);
   WritePageGuard root_page =
       this->GetWriteablePage<ExtendibleHTableHeaderPage>(this->header_page_id_, this->header_max_depth_);
@@ -124,6 +125,7 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
  *****************************************************************************/
 template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transaction) -> bool {
+  std::cerr << "Remove: " << key << std::endl;
   auto hash = Hash(key);
   WritePageGuard root_page =
       this->GetWriteablePage<ExtendibleHTableHeaderPage>(this->header_page_id_, this->header_max_depth_);
@@ -147,7 +149,11 @@ auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transa
     return false;
   }
 
-  return lp_bucket_page->Remove(key, this->cmp_);
+  if (not lp_bucket_page->Remove(key, this->cmp_)) {
+    return false;
+  }
+
+  return Merge(lp_directory_page, lp_bucket_page, bucket_page_id, bucket_idx);
 }
 
 template <typename K, typename V, typename KC>
@@ -220,7 +226,77 @@ auto DiskExtendibleHashTable<K, V, KC>::InsertToBucket(ExtendibleHTableDirectory
     }
   }
 
+  auto hash = Hash(key);
+  if (lp_directory_page->HashToBucketIndex(hash) != bucket_idx) {
+    bucket_idx = lp_directory_page->HashToBucketIndex(hash);
+
+    page_id_t bucket_page_id = lp_directory_page->GetBucketPageId(bucket_idx);
+    WritePageGuard bucket_page =
+        this->GetWriteablePage<ExtendibleHTableBucketPage<K, V, KC>>(bucket_page_id, this->bucket_max_size_);
+
+    lp_bucket_page = bucket_page.AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+  }
   return lp_bucket_page->Insert(key, value, this->cmp_);
+}
+
+template <typename K, typename V, typename KC>
+auto DiskExtendibleHashTable<K, V, KC>::Merge(ExtendibleHTableDirectoryPage *lp_directory_page,
+                                              const ExtendibleHTableBucketPage<K, V, KC> *lp_bucket_page,
+                                              page_id_t bucket_page_id, uint32_t bucket_idx) -> bool {
+  auto size = lp_directory_page->Size();
+  auto bucket_depth = lp_directory_page->GetLocalDepth(bucket_idx);
+  while (bucket_depth > 0) {
+    uint32_t hi_bit = 1ULL << (bucket_depth - 1);
+    uint32_t split_bucket_idx = bucket_idx ^ hi_bit;
+
+    page_id_t split_bucket_page_id = lp_directory_page->GetBucketPageId(split_bucket_idx);
+    if (split_bucket_page_id == bucket_page_id) {
+      bucket_depth--;
+      continue;
+    }
+
+    if (lp_directory_page->GetLocalDepth(split_bucket_idx) != bucket_depth) {
+      break;
+    }
+
+    {
+      ReadPageGuard split_bucket_page = this->bpm_->FetchPageRead(split_bucket_page_id);
+      const ExtendibleHTableBucketPage<K, V, KC> *lp_split_bucket_page =
+          split_bucket_page.As<ExtendibleHTableBucketPage<K, V, KC>>();
+
+      if (lp_split_bucket_page->Size() != 0) {
+        if (lp_bucket_page->Size() != 0) {
+          break;
+        }
+        std::swap(lp_bucket_page, lp_split_bucket_page);
+        std::swap(bucket_page_id, split_bucket_page_id);
+      }
+    }
+    bucket_depth--;
+
+    for (decltype(size) i = 0; i < size; i++) {
+      if (lp_directory_page->GetBucketPageId(i) != split_bucket_page_id) {
+        continue;
+      }
+      lp_directory_page->SetBucketPageId(i, bucket_page_id);
+      lp_directory_page->SetLocalDepth(i, bucket_depth);
+    }
+
+    bucket_idx &= hi_bit - 1;
+  }
+
+  for (decltype(size) i = 0; i < size; i++) {
+    if (lp_directory_page->GetBucketPageId(i) != bucket_page_id) {
+      continue;
+    }
+    lp_directory_page->SetLocalDepth(i, bucket_depth);
+  }
+
+  while (lp_directory_page->CanShrink()) {
+    lp_directory_page->DecrGlobalDepth();
+  }
+
+  return true;
 }
 
 template class DiskExtendibleHashTable<int, int, IntComparator>;

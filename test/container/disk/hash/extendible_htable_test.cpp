@@ -96,6 +96,22 @@ TEST(ExtendibleHTableTest, RemoveTest1) {
   auto bpm = std::make_unique<BufferPoolManager>(50, disk_mgr.get());
 
   DiskExtendibleHashTable<int, int, IntComparator> ht("blah", bpm.get(), IntComparator(), HashFunction<int>(), 2, 3, 2);
+  /*
+    ht.Insert(4, 0);
+    ht.Insert(5, 0);
+    ht.Insert(6, 0);
+    ht.Insert(14, 0);
+
+    ht.PrintHT();
+
+    ht.Remove(5);
+    ht.Remove(14);
+    ht.PrintHT();
+    ht.Remove(4);
+
+    ht.PrintHT();*/
+
+  //  std::cerr << std::endl;
 
   int num_keys = 5;
 
