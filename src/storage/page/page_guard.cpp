@@ -9,24 +9,24 @@ namespace bustub {
 BasicPageGuard::BasicPageGuard(BasicPageGuard &&that) noexcept
 
     : bpm_(that.bpm_), page_(that.page_), is_dirty_(that.is_dirty_) {
-  std::cerr << "BasicPageGuard"
-            << "\n";
+//  std::cerr << "BasicPageGuard"
+//            << "\n";
   that.bpm_ = nullptr;
   that.page_ = nullptr;
   that.is_dirty_ = false;
 }
 
 void BasicPageGuard::Drop() {
-  std::cerr << "Drop"
-            << "\n";
-  //  std::cerr << page_ << "\n";
-
+//  std::cerr << "Drop"
+//            << "\n";
+//  //  std::cerr << page_ << "\n";
+//
   if (page_ == nullptr || bpm_ == nullptr) {
     return;
   }
 
-  std::cerr << page_->GetPageId() << "\n";
-
+//  std::cerr << page_->GetPageId() << "\n";
+//
   if (is_dirty_) {
     bpm_->FlushPage(page_->GetPageId());
   }
@@ -37,8 +37,8 @@ void BasicPageGuard::Drop() {
 }
 
 auto BasicPageGuard::operator=(BasicPageGuard &&that) noexcept -> BasicPageGuard & {
-  std::cerr << "BasicPageGuard="
-            << "\n";
+//  std::cerr << "BasicPageGuard="
+//            << "\n";
   if (this == &that) {
     return *this;
   }
@@ -53,14 +53,14 @@ auto BasicPageGuard::operator=(BasicPageGuard &&that) noexcept -> BasicPageGuard
 }
 
 BasicPageGuard::~BasicPageGuard() {
-  std::cerr << "BasicPageGuard"
-            << "\n";
+//  std::cerr << "BasicPageGuard"
+//            << "\n";
   Drop();
 }
 
 auto BasicPageGuard::UpgradeRead() -> ReadPageGuard {
-  std::cerr << "UpgradeRead"
-            << "\n";
+//  std::cerr << "UpgradeRead"
+//            << "\n";
   int64_t tid = syscall((__NR_gettid));
   std::cout << "Current thread: " << tid << std::endl;
   if (page_ == nullptr) {
@@ -77,13 +77,13 @@ auto BasicPageGuard::UpgradeRead() -> ReadPageGuard {
 }
 
 ReadPageGuard::ReadPageGuard(ReadPageGuard &&that) noexcept : guard_(std::move(that.guard_)) {
-  std::cerr << "ReadPageGuard"
-            << "\n";
+//  std::cerr << "ReadPageGuard"
+//            << "\n";
 }
 
 auto ReadPageGuard::operator=(ReadPageGuard &&that) noexcept -> ReadPageGuard & {
-  std::cerr << "ReadPageGuard="
-            << "\n";
+//  std::cerr << "ReadPageGuard="
+//            << "\n";
   if (this == &that) {
     return *this;
   }
@@ -99,8 +99,8 @@ auto ReadPageGuard::operator=(ReadPageGuard &&that) noexcept -> ReadPageGuard & 
 }
 
 void ReadPageGuard::Drop() {
-  std::cerr << "ReadPageGuardDrop"
-            << "\n";
+//  std::cerr << "ReadPageGuardDrop"
+//            << "\n";
   if (guard_.page_ == nullptr) {
     return;
   }
@@ -110,15 +110,15 @@ void ReadPageGuard::Drop() {
 }
 
 ReadPageGuard::~ReadPageGuard() {
-  std::cerr << "~ReadPageGuard"
-            << "\n";
+//  std::cerr << "~ReadPageGuard"
+//            << "\n";
   //  if(guard_.page_ == nullptr) return;
   ReadPageGuard::Drop();
 }  // NOLINT
 
 auto BasicPageGuard::UpgradeWrite() -> WritePageGuard {
-  std::cerr << "UpgradeWrite"
-            << "\n";
+//  std::cerr << "UpgradeWrite"
+//            << "\n";
   int64_t tid = syscall((__NR_gettid));
   std::cout << "Current thread: " << tid << std::endl;
   if (page_ == nullptr) {
@@ -136,13 +136,13 @@ auto BasicPageGuard::UpgradeWrite() -> WritePageGuard {
 };  // NOLINT
 
 WritePageGuard::WritePageGuard(WritePageGuard &&that) noexcept : guard_(std::move(that.guard_)) {
-  std::cerr << "WritePageGuard"
-            << "\n";
+//  std::cerr << "WritePageGuard"
+//            << "\n";
 }
 
 auto WritePageGuard::operator=(WritePageGuard &&that) noexcept -> WritePageGuard & {
-  std::cerr << "WritePageGuard="
-            << "\n";
+//  std::cerr << "WritePageGuard="
+//            << "\n";
   if (this == &that) {
     return *this;
   }
@@ -158,8 +158,8 @@ auto WritePageGuard::operator=(WritePageGuard &&that) noexcept -> WritePageGuard
 }
 
 void WritePageGuard::Drop() {
-  std::cerr << "WritePageGuardDrop"
-            << "\n";
+//  std::cerr << "WritePageGuardDrop"
+//            << "\n";
   if (guard_.page_ == nullptr) {
     return;
   }
@@ -169,8 +169,8 @@ void WritePageGuard::Drop() {
   //  guard_.page_->WUnlatch();
 }
 WritePageGuard::~WritePageGuard() {
-  std::cerr << "~WritePageGuard"
-            << "\n";
+//  std::cerr << "~WritePageGuard"
+//            << "\n";
   //  if(guard_.page_ == nullptr) return;
   WritePageGuard::Drop();
 }  // NOLINT

@@ -123,6 +123,10 @@ class DiskExtendibleHashTable {
                       ExtendibleHTableBucketPage<K, V, KC> *new_bucket, uint32_t new_bucket_idx,
                       uint32_t local_depth_mask);
 
+
+  auto SplitInsertBucket(ExtendibleHTableDirectoryPage *directory, uint32_t bucket_idx,
+                         const K &key, const V &value) -> bool;
+
   // member variables
   std::string index_name_;
   BufferPoolManager *bpm_;
@@ -133,5 +137,4 @@ class DiskExtendibleHashTable {
   uint32_t bucket_max_size_;
   page_id_t header_page_id_;
 };
-
 }  // namespace bustub

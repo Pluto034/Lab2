@@ -27,7 +27,9 @@ void ExtendibleHTableDirectoryPage::Init(uint32_t max_depth) {
   std::fill(bucket_page_ids_, bucket_page_ids_ + HTABLE_DIRECTORY_ARRAY_SIZE, INVALID_PAGE_ID);
 }
 
-auto ExtendibleHTableDirectoryPage::HashToBucketIndex(uint32_t hash) const -> uint32_t { return hash % Size(); }
+auto ExtendibleHTableDirectoryPage::HashToBucketIndex(uint32_t hash) const -> uint32_t {
+  return hash & GetGlobalDepthMask();
+}
 
 auto ExtendibleHTableDirectoryPage::GetBucketPageId(uint32_t bucket_idx) const -> page_id_t {
   if (bucket_idx >= HTABLE_DIRECTORY_ARRAY_SIZE) return INVALID_PAGE_ID;
@@ -40,13 +42,7 @@ void ExtendibleHTableDirectoryPage::SetBucketPageId(uint32_t bucket_idx, page_id
 }
 
 auto ExtendibleHTableDirectoryPage::GetSplitImageIndex(uint32_t bucket_idx) const -> uint32_t {
-  //  uint32_t now = this->bucket_page_ids_[bucket_idx];
-  //  if (this->local_depths_[bucket_idx] > this->global_depth_) {
-  //    now ^= (1 << global_depth_);
-  //  } else {
-  //    now ^= (1 << (global_depth_ - 1));
-  //  }
-  //  return now;
+//  auto tmp = bucket_idx ^ (1u << local_depths_[bucket_idx]);
   return bucket_idx ^ (1u << local_depths_[bucket_idx]);
 }
 
@@ -54,6 +50,7 @@ auto ExtendibleHTableDirectoryPage::GetGlobalDepth() const -> uint32_t { return 
 
 void ExtendibleHTableDirectoryPage::IncrGlobalDepth() {
   assert(global_depth_ < max_depth_);
+
   for (uint32_t i = (1u << (global_depth_)); i < (1u << (global_depth_ + 1)); i++) {
     local_depths_[i] = local_depths_[i - (1u << (global_depth_))];
     bucket_page_ids_[i] = bucket_page_ids_[i - (1u << (global_depth_))];
@@ -89,8 +86,8 @@ void ExtendibleHTableDirectoryPage::IncrLocalDepth(uint32_t bucket_idx) { local_
 void ExtendibleHTableDirectoryPage::DecrLocalDepth(uint32_t bucket_idx) { local_depths_[bucket_idx]--; }
 
 auto ExtendibleHTableDirectoryPage::GetLocalDepthMask(uint32_t bucket_idx) const -> uint32_t {
-  return 1 << this->local_depths_[bucket_idx];
+  return (1 << this->local_depths_[bucket_idx]) - 1;
 }
-auto ExtendibleHTableDirectoryPage::GetGlobalDepthMask() const -> uint32_t { return 1 << global_depth_; }
+auto ExtendibleHTableDirectoryPage::GetGlobalDepthMask() const -> uint32_t { return (1 << global_depth_) - 1; }
 
 }  // namespace bustub

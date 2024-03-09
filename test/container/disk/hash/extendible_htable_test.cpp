@@ -39,6 +39,9 @@ TEST(ExtendibleHTableTest, InsertTest1) {
     ht.GetValue(i, &res);
     ASSERT_EQ(1, res.size());
     ASSERT_EQ(i, res[0]);
+
+    LOG_DEBUG("======== DIRECTORY (ht,Insert: %u) ========", i);
+    ht.PrintHT();
   }
 
   ht.VerifyIntegrity();

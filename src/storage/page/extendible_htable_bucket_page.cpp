@@ -23,7 +23,7 @@ void ExtendibleHTableBucketPage<K, V, KC>::Init(uint32_t max_size) {
   size_ = 0;
   max_size_ = max_size;
   for (uint32_t i = 0; i < max_size; i++) {
-    array_[i] = {{-1},{}};
+    array_[i] = {{-1}, {}};
   }
 }
 
@@ -100,7 +100,7 @@ auto ExtendibleHTableBucketPage<K, V, KC>::EntryAt(uint32_t bucket_idx) const ->
   if (bucket_idx < size_) {
     return array_[bucket_idx];
   }
-  throw std::out_of_range("EntryAt Invalid bucket index");
+    throw std::out_of_range("EntryAt Invalid bucket index");
 }
 
 template <typename K, typename V, typename KC>
