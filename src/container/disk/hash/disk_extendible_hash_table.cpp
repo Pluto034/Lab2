@@ -93,8 +93,11 @@ auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *r
 
 template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Transaction *transaction) -> bool {
-  std::cerr << "Insert: " << key << std::endl;
+  std::cerr << "size: " << this->bpm_->GetPoolSize() << std::endl;
   auto hash = Hash(key);
+  if (hash == 511) {
+    this->PrintHT();
+  }
   WritePageGuard root_page =
       this->GetWriteablePage<ExtendibleHTableHeaderPage>(this->header_page_id_, this->header_max_depth_);
   ExtendibleHTableHeaderPage *lp_root_page = root_page.AsMut<ExtendibleHTableHeaderPage>();
@@ -105,6 +108,9 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
       this->GetWriteablePage<ExtendibleHTableDirectoryPage>(directory_page_id, this->directory_max_depth_);
   lp_root_page->SetDirectoryPageId(directory_idx, directory_page_id);
   ExtendibleHTableDirectoryPage *lp_directory_page = directory_page.AsMut<ExtendibleHTableDirectoryPage>();
+
+  // TODO 改掉这个缺德事
+  root_page.Drop();
 
   auto bucket_idx = lp_directory_page->HashToBucketIndex(hash);
   page_id_t bucket_page_id = lp_directory_page->GetBucketPageId(bucket_idx);
@@ -136,6 +142,10 @@ auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transa
   WritePageGuard directory_page =
       this->GetWriteablePage<ExtendibleHTableDirectoryPage>(directory_page_id, this->directory_max_depth_);
   lp_root_page->SetDirectoryPageId(directory_idx, directory_page_id);
+
+  // TODO 改掉这个缺德事
+  root_page.Drop();
+
   ExtendibleHTableDirectoryPage *lp_directory_page = directory_page.AsMut<ExtendibleHTableDirectoryPage>();
 
   auto bucket_idx = lp_directory_page->HashToBucketIndex(hash);
@@ -281,7 +291,7 @@ auto DiskExtendibleHashTable<K, V, KC>::Merge(ExtendibleHTableDirectoryPage *lp_
       lp_directory_page->SetBucketPageId(i, bucket_page_id);
       lp_directory_page->SetLocalDepth(i, bucket_depth);
     }
-
+    this->bpm_->DeletePage(split_bucket_page_id);
     bucket_idx &= hi_bit - 1;
   }
 
