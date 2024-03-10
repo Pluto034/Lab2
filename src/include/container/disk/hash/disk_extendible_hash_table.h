@@ -119,6 +119,7 @@ class DiskExtendibleHashTable {
   auto SplitInsertBucket(ExtendibleHTableDirectoryPage *directory, ExtendibleHTableBucketPage<K, V, KC> *bucket_page,
                          uint32_t bucket_idx, const K &key, const V &value) -> bool;
 
+  void Merge(ExtendibleHTableDirectoryPage *directory, uint32_t bucket_idx);
   // member variables
   std::string index_name_;
   BufferPoolManager *bpm_;

@@ -64,8 +64,8 @@ BufferPoolManager::~BufferPoolManager() { delete[] pages_; }
 auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
   //  std::cerr << "NewPage: " << page_id << std::endl;
   //
-  int64_t tid = syscall((__NR_gettid));
-  std::cout << "Current thread: " << tid << std::endl;
+  //  int64_t tid = syscall((__NR_gettid));
+  //  std::cout << "Current thread: " << tid << std::endl;
   std::unique_lock<std::mutex> lock(latch_);
 
   frame_id_t frame_id;
@@ -113,8 +113,8 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
   //  std::cerr << "Fetch: " << page_id << std::endl;
   //
   std::unique_lock<std::mutex> lock(latch_);
-  int64_t tid = syscall((__NR_gettid));
-  std::cout << "Current thread: " << tid << std::endl;
+  //  int64_t tid = syscall((__NR_gettid));
+  //  std::cout << "Current thread: " << tid << std::endl;
 
   auto iter = page_table_.find(page_id);
 
@@ -313,8 +313,8 @@ auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard {
 auto BufferPoolManager::NewPageGuarded(page_id_t *page_id) -> BasicPageGuard {
   //  std::cerr << "NewPageGuarded" << page_id << "\n";
   //
-  int64_t tid = syscall((__NR_gettid));
-  std::cout << "Current thread: " << tid << std::endl;
+  //  int64_t tid = syscall((__NR_gettid));
+  //  std::cout << "Current thread: " << tid << std::endl;
   auto page = NewPage(page_id);
   return {this, page};
 }

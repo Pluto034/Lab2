@@ -60,14 +60,14 @@ void ExtendibleHTableDirectoryPage::IncrGlobalDepth() {
 
 void ExtendibleHTableDirectoryPage::DecrGlobalDepth() {
   assert(global_depth_ > 0);
-  std::fill(local_depths_ + (1u << (global_depth_ - 1)), local_depths_ + ((1u << global_depth_) - 1), 0);
-  std::fill(bucket_page_ids_ + (1u << (global_depth_ - 1)), bucket_page_ids_ + ((1u << global_depth_) - 1), -1);
+  std::fill(local_depths_ + (1u << (global_depth_ - 1)), local_depths_ + ((1u << global_depth_)), 0);
+  std::fill(bucket_page_ids_ + (1u << (global_depth_ - 1)), bucket_page_ids_ + ((1u << global_depth_)), -1);
   global_depth_--;
 }
 
 auto ExtendibleHTableDirectoryPage::CanShrink() -> bool {
   return std::all_of(std::begin(local_depths_), std::end(local_depths_),
-                     [this](auto item) { return item != global_depth_; });
+                     [this](auto item) { return item < global_depth_; });
 }
 
 auto ExtendibleHTableDirectoryPage::Size() const -> uint32_t { return 1u << global_depth_; }
