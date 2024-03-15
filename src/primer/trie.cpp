@@ -3,28 +3,71 @@
 #include "common/exception.h"
 
 namespace bustub {
-
 template <class T>
 auto Trie::Get(std::string_view key) const -> const T * {
-  throw NotImplementedException("Trie::Get is not implemented.");
-
+ // throw NotImplementedException("Trie::Get is not implemented.");
+   auto current = root_;
+   auto tmp = current;
+   int len = key.length();
+   for (int i=0;i<=len-1;++i) {
+     char c = key[i];
+     if (tmp->children_.count(c) == 0) {
+       return nullptr;
+     }
+     tmp = current->children_.at(c);
+   }
+   std::shared_ptr<const TrieNodeWithValue<T>>endNode = std::dynamic_pointer_cast<const TrieNodeWithValue<T>>(tmp);
+   if(!endNode)
+   {
+      return nullptr;
+   }
+   else
+   {
+      if(tmp->is_value_node_==true)
+      {
+          return endNode->value_.get();
+      }
+   }
   // You should walk through the trie to find the node corresponding to the key. If the node doesn't exist, return
   // nullptr. After you find the node, you should use `dynamic_cast` to cast it to `const TrieNodeWithValue<T> *`. If
   // dynamic_cast returns `nullptr`, it means the type of the value is mismatched, and you should return nullptr.
   // Otherwise, return the value.
 }
+template <class T>
+auto dfs(std::string_view key, T &value, int stp, std::shared_ptr<const TrieNode>node) -> std::shared_ptr<const TrieNode>
+{
+    char c = key[stp];
+    auto it = node->children_.find(c);
+    if(it!=node->children_.end())
+    {
+        if(node->is_value_node_==false)
+        {
+            auto newMap = node->children_;
+            newMap[c] = dfs(key, value, stp+1, node->children_.at(c));
+            std::shared_ptr<const TrieNode>ansNode = std::make_shared<const TrieNode>(newMap);
+        }
+        else
+        {
 
+        }
+    }
+    else
+    {
+
+    }
+}
 template <class T>
 auto Trie::Put(std::string_view key, T value) const -> Trie {
   // Note that `T` might be a non-copyable type. Always use `std::move` when creating `shared_ptr` on that value.
-  throw NotImplementedException("Trie::Put is not implemented.");
+  // throw NotImplementedException("Trie::Put is not implemented.");
+    std::shared_ptr<const TrieNode> ansNode = std::move(dfs(key, value, 0, root_));
 
   // You should walk through the trie and create new nodes if necessary. If the node corresponding to the key already
   // exists, you should create a new `TrieNodeWithValue`.
 }
 
 auto Trie::Remove(std::string_view key) const -> Trie {
-  throw NotImplementedException("Trie::Remove is not implemented.");
+ // throw NotImplementedException("Trie::Remove is not implemented.");
 
   // You should walk through the trie and remove nodes if necessary. If the node doesn't contain a value any more,
   // you should convert it to `TrieNode`. If a node doesn't have children any more, you should remove it.

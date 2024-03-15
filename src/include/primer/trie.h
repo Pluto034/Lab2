@@ -105,13 +105,14 @@ class Trie {
  private:
   // The root of the trie.
   std::shared_ptr<const TrieNode> root_{nullptr};
-
+  //一个总的共享指针
   // Create a new trie with the given root.
   explicit Trie(std::shared_ptr<const TrieNode> root) : root_(std::move(root)) {}
-
+  //构造函数，构造Trie类的对象的根节点。以移动的方式，所以
+  //我们需要每次
  public:
   // Create an empty trie.
-  Trie() = default;
+  Trie() = default;//
 
   // Get the value associated with the given key.
   // 1. If the key is not in the trie, return nullptr.

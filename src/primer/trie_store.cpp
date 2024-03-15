@@ -12,6 +12,7 @@ auto TrieStore::Get(std::string_view key) -> std::optional<ValueGuard<T>> {
   // (3) If the value is found, return a ValueGuard object that holds a reference to the value and the
   //     root. Otherwise, return std::nullopt.
   throw NotImplementedException("TrieStore::Get is not implemented.");
+
 }
 
 template <class T>
@@ -19,6 +20,11 @@ void TrieStore::Put(std::string_view key, T value) {
   // You will need to ensure there is only one writer at a time. Think of how you can achieve this.
   // The logic should be somehow similar to `TrieStore::Get`.
   throw NotImplementedException("TrieStore::Put is not implemented.");
+  //现在要实现可持续化字典树的插入。 首先， 我需要创建一个新的根节点，然后由这个根连接不是我当前value值对应的位置， 然后
+  //我自己value对应的位置一路创建下去， 直到最后一个， 赋予值
+
+
+
 }
 
 void TrieStore::Remove(std::string_view key) {

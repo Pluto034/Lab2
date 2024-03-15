@@ -13,8 +13,8 @@ namespace bustub {
 template <class T>
 class ValueGuard {
  public:
-  ValueGuard(Trie root, const T &value) : root_(std::move(root)), value_(value) {}
-  auto operator*() const -> const T & { return value_; }
+  ValueGuard(Trie root, const T &value) : root_(std::move(root)), value_(value) {} //构造函数。移动新节点， 值
+  auto operator*() const -> const T & { return value_; } //
 
  private:
   Trie root_;
@@ -29,7 +29,7 @@ class TrieStore {
   // This function returns a ValueGuard object that holds a reference to the value in the trie. If
   // the key does not exist in the trie, it will return std::nullopt.
   template <class T>
-  auto Get(std::string_view key) -> std::optional<ValueGuard<T>>;
+  auto Get(std::string_view key) -> std::optional<ValueGuard<T>>; //
 
   // This function will insert the key-value pair into the trie. If the key already exists in the
   // trie, it will overwrite the value.
@@ -42,7 +42,7 @@ class TrieStore {
  private:
   // This mutex protects the root. Every time you want to access the trie root or modify it, you
   // will need to take this lock.
-  std::mutex root_lock_;
+  std::mutex root_lock_; //这里应该是记录根， 并且加锁的。
 
   // This mutex sequences all writes operations and allows only one write operation at a time.
   std::mutex write_lock_;
