@@ -19,7 +19,7 @@ BasicPageGuard::BasicPageGuard(BufferPoolManager *bpm, Page *page) : bpm_(bpm), 
  */
 BasicPageGuard::BasicPageGuard(BasicPageGuard &&that) noexcept {
   if (that.page_ == nullptr) {
-    std::cerr << "Warn: the page move to BasicPageGuard Object @" << this << " is nullptr." << std::endl;
+    // std::cerr << "Warn: the page move to BasicPageGuard Object @" << this << " is nullptr." << std::endl;
   }
 
   this->Copy(that);
@@ -38,8 +38,8 @@ auto BasicPageGuard::Copy(const BasicPageGuard &other) -> void {
  */
 void BasicPageGuard::Drop() {
   if (this->page_ == nullptr) {
-    std::cerr << "Warn: Drop function was called on a BasicPageGuard Object @" << this << " which page is nullptr."
-              << std::endl;
+    // std::cerr << "Warn: Drop function was called on a BasicPageGuard Object @" << this << " which page is nullptr."
+    //           << std::endl;
   } else {
     // 将修改回写
     this->bpm_->UnpinPage(this->PageId(), this->is_dirty_);
@@ -52,8 +52,8 @@ void BasicPageGuard::Drop() {
 auto BasicPageGuard::operator=(BasicPageGuard &&that) noexcept -> BasicPageGuard & {
   // 自赋值
   if (&that == this) {
-    std::cerr << "Warn: assign function was called on a BasicPageGuard Object @" << this
-              << " which the other object is self." << std::endl;
+    // std::cerr << "Warn: assign function was called on a BasicPageGuard Object @" << this
+    //           << " which the other object is self." << std::endl;
     return *this;
   }
 
@@ -63,7 +63,7 @@ auto BasicPageGuard::operator=(BasicPageGuard &&that) noexcept -> BasicPageGuard
   }
 
   if (that.page_ == nullptr) {
-    std::cerr << "Warn: the page move to BasicPageGuard Object @" << this << " is nullptr." << std::endl;
+    // std::cerr << "Warn: the page move to BasicPageGuard Object @" << this << " is nullptr." << std::endl;
   }
 
   this->Copy(that);
@@ -115,7 +115,7 @@ auto BasicPageGuard::GetData() -> const char * {
 
 ReadPageGuard::ReadPageGuard(BufferPoolManager *bpm, Page *page) : guard_(bpm, page) {
   if (page == nullptr) {
-    std::cerr << "Warn: ReadPageGuard @" << this << " has no page." << std::endl;
+    // std::cerr << "Warn: ReadPageGuard @" << this << " has no page." << std::endl;
   }
 }
 
@@ -125,12 +125,12 @@ ReadPageGuard::ReadPageGuard(ReadPageGuard &&that) noexcept : guard_(std::move(t
 
 auto ReadPageGuard::operator=(ReadPageGuard &&that) noexcept -> ReadPageGuard & {
   if (&that == this) {
-    std::cerr << "Warn: assign function was called on a ReadPageGuard Object @" << this
-              << " which the other object is self." << std::endl;
+    // std::cerr << "Warn: assign function was called on a ReadPageGuard Object @" << this
+    //           << " which the other object is self." << std::endl;
     return *this;
   }
   if (this->guard_.page_ == nullptr) {
-    std::cerr << "Warn: ReadPageGuard @" << this << " has no page." << std::endl;
+    // std::cerr << "Warn: ReadPageGuard @" << this << " has no page." << std::endl;
   } else {
     this->Drop();
   }
@@ -153,7 +153,7 @@ auto ReadPageGuard::GetData() -> const char * { return this->guard_.GetData(); }
 
 WritePageGuard::WritePageGuard(BufferPoolManager *bpm, Page *page) : guard_(bpm, page) {
   if (page == nullptr) {
-    std::cerr << "Warn: ReadPageGuard @" << this << " has no page." << std::endl;
+    // std::cerr << "Warn: ReadPageGuard @" << this << " has no page." << std::endl;
   }
 }
 WritePageGuard::WritePageGuard(BasicPageGuard &&basic) : guard_(std::move(basic)) {}
@@ -162,12 +162,12 @@ WritePageGuard::WritePageGuard(WritePageGuard &&that) noexcept : guard_(std::mov
 
 auto WritePageGuard::operator=(WritePageGuard &&that) noexcept -> WritePageGuard & {
   if (&that == this) {
-    std::cerr << "Warn: assign function was called on a WritePageGuard Object @" << this
-              << " which the other object is self." << std::endl;
+    // std::cerr << "Warn: assign function was called on a WritePageGuard Object @" << this
+    //           << " which the other object is self." << std::endl;
     return *this;
   }
   if (this->guard_.page_ == nullptr) {
-    std::cerr << "Warn: WritePageGuard @" << this << " has no page." << std::endl;
+    // std::cerr << "Warn: WritePageGuard @" << this << " has no page." << std::endl;
   } else {
     this->Drop();
   }

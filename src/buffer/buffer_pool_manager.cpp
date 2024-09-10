@@ -27,7 +27,7 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
 
   // we allocate a consecutive memory space for the buffer pool
   pages_ = new Page[pool_size_];
-  std::cerr << "k:" << replacer_k << std::endl;
+  // std::cerr << "k:" << replacer_k << std::endl;
   replacer_ = std::make_unique<LRUKReplacer>(pool_size, replacer_k);
 
   // Initially, every page is in the free list.
