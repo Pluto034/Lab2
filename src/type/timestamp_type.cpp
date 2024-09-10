@@ -115,7 +115,7 @@ auto TimestampType::ToString(const Value &val) const -> std::string {
   tm /= 32;
   auto month = static_cast<uint16_t>(tm);
   const size_t date_str_len = 30;
-  const size_t zone_len = 5;
+  const size_t zone_len = 20;
   char str[date_str_len];
   char zone[zone_len];
   snprintf(str, date_str_len, "%04d-%02d-%02d %02d:%02d:%02d.%06d", year, month, day, hour, min, sec, micro);
