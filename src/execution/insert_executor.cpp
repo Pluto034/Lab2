@@ -37,7 +37,15 @@ auto InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
     for (;insert_item_->Next(&tmp_tuple, &tmp_rid); insert_cnt++) {
       // TODO timestamp
       auto meta = TupleMeta{0 , false};
-      exec_ctx_->GetCatalog()->GetTable(plan_->table_oid_)->table_->InsertTuple(meta, tmp_tuple);
+      auto table = exec_ctx_->GetCatalog()->GetTable(plan_->table_oid_);
+      auto res_rid = table->table_->InsertTuple(meta, tmp_tuple);
+      BUSTUB_ENSURE(res_rid.has_value(), "Insert fail.");
+      auto indexes = exec_ctx_->GetCatalog()->GetTableIndexes(table->name_);
+
+      for(auto index_info_: indexes) {
+        auto htable_ = dynamic_cast<HashTableIndexForTwoIntegerColumn *>(index_info_->index_.get());
+        htable_->InsertEntry(tmp_tuple.KeyFromTuple(table->schema_, *htable_->GetKeySchema(), htable_->GetKeyAttrs()), res_rid.value(), exec_ctx_->GetTransaction());
+      }
     }
     insert_item_.reset(nullptr);
 
