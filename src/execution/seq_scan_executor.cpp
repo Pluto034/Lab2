@@ -25,7 +25,7 @@ void SeqScanExecutor::Init() {
   const auto lptable = lpCatalog->GetTable(plan_->table_oid_);
   const auto &tableRef = lptable->table_;
 
-  iterator_ = std::make_unique<TableIterator>(std::move(tableRef->MakeIterator()));
+  iterator_ = std::make_unique<TableIterator>(tableRef->MakeIterator());
 }
 
 auto SeqScanExecutor::Next(Tuple *tuple, RID *rid) -> bool {
